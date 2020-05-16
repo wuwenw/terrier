@@ -73,11 +73,14 @@ constexpr proc_oid_t ASIN_PRO_OID = proc_oid_t(86);
 constexpr proc_oid_t ATAN_PRO_OID = proc_oid_t(87);
 constexpr proc_oid_t COS_PRO_OID = proc_oid_t(88);
 constexpr proc_oid_t SIN_PRO_OID = proc_oid_t(89);
+constexpr proc_oid_t EXP_PRO_OID = proc_oid_t(135);
 
 // TODO(tanujnay112) This overflows into the next internal oid range and will continue to do so
 constexpr proc_oid_t TAN_PRO_OID = proc_oid_t(90);
 constexpr proc_oid_t COT_PRO_OID = proc_oid_t(91);
 constexpr proc_oid_t LOWER_PRO_OID = proc_oid_t(92);
 constexpr proc_oid_t UPPER_PRO_OID = proc_oid_t(93);
+constexpr proc_oid_t CHR_PRO_OID = proc_oid_t(106);
+constexpr proc_oid_t CHARLENGTH_PRO_OID = proc_oid_t(112);
 
 }  // namespace terrier::catalog::postgres
