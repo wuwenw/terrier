@@ -229,14 +229,14 @@ public class FunctionsTest extends TestUtility {
     }
 
     public void testCharLength() throws SQLException {
-        checkStringFunc("char_length", "str_val", "char_length_1", false, 6);
-        checkStringFunc("char_length", "str_val", "char_length_null", true, null);
+        checkStringFuncWithName("char_length", "str_val", "char_length_1", false, 6);
+        checkStringFuncWithName("char_length", "str_val", "char_length_null", true, null);
     }
 
     public void testChr() throws SQLException {
-        checkStringFunc("chr", "int_val", "chr_test", false, "{");
-        checkStringFunc("chr", "int_val", "chr_test_null", true, null);
-        checkStringFunc("chr", "int_val", "chr_test_another", false, "Ā");
-        checkStringFunc("chr", "int_val", "chr_test_utf-8", false, "џ");
+        checkStringFuncWithName("chr", "int_val", "chr_test", false, "{");
+        checkStringFuncWithName("chr", "int_val", "chr_test_null", true, null);
+        checkStringFuncWithName("chr", "int_val", "chr_test_another", false, "Ā");
+        checkStringFuncWithName("chr", "int_val", "chr_test_utf-8", false, "џ");
     }
 }
