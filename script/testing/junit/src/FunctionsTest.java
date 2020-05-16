@@ -218,6 +218,11 @@ public class FunctionsTest extends TestUtility {
         checkDoubleFunc("tan", "double_val", false, -0.230318);
         checkDoubleFunc("tan", "double_val", true, null);
     }
+
+    @Test
+    public void testExp() throws SQLException {
+        checkDoubleFunc("exp", "double_val", false, 228661.952);
+    }
     
     /**
      * String Functions
@@ -228,11 +233,13 @@ public class FunctionsTest extends TestUtility {
         checkStringFunc("lower", "str_a_val", true, null);
     }
 
+    @Test
     public void testCharLength() throws SQLException {
         checkStringFuncWithName("char_length", "str_val", "char_length_1", false, 6);
         checkStringFuncWithName("char_length", "str_val", "char_length_null", true, null);
     }
 
+    @Test
     public void testChr() throws SQLException {
         checkStringFuncWithName("chr", "int_val", "chr_test", false, "{");
         checkStringFuncWithName("chr", "int_val", "chr_test_null", true, null);
