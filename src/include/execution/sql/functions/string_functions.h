@@ -124,9 +124,9 @@ class EXPORT StringFunctions {
   static void Upper(exec::ExecutionContext *ctx, StringVal *result, const StringVal &str);
 
   /**
-   * convert integer ascii code to its character
+   * Convert integer ascii code to its character
+   * Does not allow 0 for null char per Postgres 12 standard, so we should throw error
    */
   static void Chr(exec::ExecutionContext *ctx, StringVal *result, const Integer &code);
 };
-
 }  // namespace terrier::execution::sql
