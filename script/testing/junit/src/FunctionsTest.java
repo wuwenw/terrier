@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.PreparedStatement;
 import java.sql.Types.*;
+import java.util.function.IntFunction;
 
 import org.junit.After;
 import org.junit.Before;
@@ -21,7 +22,8 @@ public class FunctionsTest extends TestUtility {
     private String S_SQL = "SELECT * FROM data;";
 
     private static final String SQL_DROP_TABLE =
-            "DROP TABLE IF EXISTS data; DROP TABLE IF EXISTS data2; ";
+            "DROP TABLE IF EXISTS data;";
+
 
     private static final String SQL_CREATE_TABLE =
             "CREATE TABLE data (" +
@@ -31,12 +33,7 @@ public class FunctionsTest extends TestUtility {
                     "str_a_val VARCHAR(32)," + // Alpha string
 //                     "bool_val BOOL," +
                     "is_null INT);";
-    private static final String SQL_CREATE_TABLE2 =
-            " CREATE TABLE data2 (" +
-                    "int_val INT, " +
-                    "str_val VARCHAR(32)," +
-                    "test_name TEXT," +
-                    "is_null INT);";
+
 
     /**
      * Initialize the database and table for testing
@@ -45,7 +42,6 @@ public class FunctionsTest extends TestUtility {
         Statement stmt = conn.createStatement();
         stmt.execute(SQL_DROP_TABLE);
         stmt.execute(SQL_CREATE_TABLE);
-        stmt.execute(SQL_CREATE_TABLE2);
 
         String sql = "INSERT INTO data (" +
                      "int_val, double_val, str_i_val, str_a_val, " +
@@ -78,52 +74,6 @@ public class FunctionsTest extends TestUtility {
         
         pstmt.executeBatch();
 
-        String sql2 = "INSERT INTO data2 (" +
-                     "int_val, str_val, test_name " + 
-                     "is_null " +
-                     ") VALUES (?, ?, ?, ?);";
-        PreparedStatement pstmt2 = conn.prepareStatement(sql);
-        int idx2 = 1;
-        pstmt2.setInt(idx2++, 123);
-        pstmt2.setString(idx2++, "123456");
-        pstmt2.setString(idx2++, "char_length_1");
-        pstmt2.setInt(idx2++, 0);
-        pstmt2.addBatch();
-
-        idx2 = 1;
-        pstmt2.setInt(idx2++, 123);
-        pstmt2.setNull(idx2++, java.sql.Types.VARCHAR);
-        pstmt2.setString(idx2++, "char_length_null");
-        pstmt2.setInt(idx2++, 0);
-        pstmt2.addBatch();
-
-        idx2 = 1;
-        pstmt2.setInt(idx2++, 123);
-        pstmt2.setNull(idx2++, java.sql.Types.VARCHAR);
-        pstmt2.setString(idx2++, "chr_test");
-        pstmt2.setInt(idx2++, 0);
-        pstmt2.addBatch();
-
-        idx2 = 1;
-        pstmt2.setInt(idx2++, 256);
-        pstmt2.setNull(idx2++, java.sql.Types.VARCHAR);
-        pstmt2.setString(idx2++, "chr_test_another");
-        pstmt2.setInt(idx2++, 0);
-        pstmt2.addBatch();
-
-        idx2 = 1;
-        pstmt2.setInt(idx2++, 551);
-        pstmt2.setNull(idx2++, java.sql.Types.VARCHAR);
-        pstmt2.setString(idx2++, "chr_test_utf-8");
-        pstmt2.setInt(idx2++, 0);
-        pstmt2.addBatch();
-
-        idx2 = 1;
-        pstmt2.setInt(idx2++, 0);
-        pstmt2.setNull(idx2++, java.sql.Types.VARCHAR);
-        pstmt2.setString(idx2++, "chr_test_null");
-        pstmt2.setInt(idx2++, 0);
-        pstmt2.addBatch();
     }
 
     /**
@@ -184,10 +134,10 @@ public class FunctionsTest extends TestUtility {
         assertNoMoreRows(rs);
     }
 
-    private void checkStringFuncWithName(String func_name, String col_name, String test_name, boolean is_null, 
-                                         String expected) throws SQLException {
-        String sql = String.format("SELECT %s(%s) AS result FROM data WHERE test_name = %s",
-                                   func_name, col_name, test_name);
+    private void checkStringFuncWithDoubleOutput(String func_name, String col_name, boolean is_null,
+                                         Integer expected) throws SQLException {
+        String sql = String.format("SELECT %s(%s) AS result FROM data WHERE is_null = %s",
+                                   func_name, col_name, (is_null ? 1 : 0));
         
         Statement stmt = conn.createStatement();
         ResultSet rs = stmt.executeQuery(sql);
@@ -196,7 +146,7 @@ public class FunctionsTest extends TestUtility {
         if (is_null) {
             checkStringRow(rs, new String[]{"result"}, new String[]{null});
         } else {
-            checkStringRow(rs, new String[]{"result"}, new String[]{expected});
+            checkIntRow(rs, new String[]{"result"}, new int[]{expected});
         }
         assertNoMoreRows(rs);
     }
@@ -224,6 +174,7 @@ public class FunctionsTest extends TestUtility {
     @Test
     public void testExp() throws SQLException {
         checkDoubleFunc("exp", "double_val", false, 228661.952);
+        checkDoubleFunc("exp", "double_val", true, null);
     }
     
     /**
@@ -237,14 +188,14 @@ public class FunctionsTest extends TestUtility {
 
     @Test
     public void testCharLength() throws SQLException {
-        checkStringFuncWithName("char_length", "str_val", "char_length_1", false, "6");
-        checkStringFuncWithName("char_length", "str_val", "char_length_null", true, null);
+        checkStringFuncWithDoubleOutput("char_length", "str_a_val", false, 6);
+        checkStringFuncWithDoubleOutput("char_length", "str_a_val", true, null);
     }
 
     @Test
     public void testChr() throws SQLException {
-        // checkStringFuncWithName("chr", "int_val", "chr_test", false, "{");
-        // checkStringFuncWithName("chr", "int_val", "chr_test_null", true, null);
+         checkStringFunc("chr", "int_val", false, "{");
+         checkStringFunc("chr", "int_val", true, null);
         // checkStringFuncWithName("chr", "int_val", "chr_test_another", false, "Ā");
         // checkStringFuncWithName("chr", "int_val", "chr_test_utf-8", false, "џ");
     }
