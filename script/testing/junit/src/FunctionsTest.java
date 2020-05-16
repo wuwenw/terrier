@@ -30,8 +30,9 @@ public class FunctionsTest extends TestUtility {
                     "str_i_val VARCHAR(32)," + // Integer as string
                     "str_a_val VARCHAR(32)," + // Alpha string
 //                     "bool_val BOOL," +
-                    "is_null INT);"
-            "CREATE TABLE data2 (" +
+                    "is_null INT);";
+    private static final String SQL_CREATE_TABLE2 =
+            " CREATE TABLE data2 (" +
                     "int_val INT, " +
                     "str_val VARCHAR(32)," +
                     "test_name TEXT," +
@@ -44,6 +45,7 @@ public class FunctionsTest extends TestUtility {
         Statement stmt = conn.createStatement();
         stmt.execute(SQL_DROP_TABLE);
         stmt.execute(SQL_CREATE_TABLE);
+        stmt.execute(SQL_CREATE_TABLE2);
 
         String sql = "INSERT INTO data (" +
                      "int_val, double_val, str_i_val, str_a_val, " +
@@ -235,7 +237,7 @@ public class FunctionsTest extends TestUtility {
 
     @Test
     public void testCharLength() throws SQLException {
-        checkStringFuncWithName("char_length", "str_val", "char_length_1", false, 6);
+        checkStringFuncWithName("char_length", "str_val", "char_length_1", false, "6");
         checkStringFuncWithName("char_length", "str_val", "char_length_null", true, null);
     }
 
