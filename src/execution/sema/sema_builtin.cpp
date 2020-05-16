@@ -1324,6 +1324,7 @@ void Sema::CheckMathTrigCall(ast::CallExpr *call, ast::Builtin builtin) {
       }
       break;
     }
+    case ast::Builtin::Exp:
     case ast::Builtin::Cos:
     case ast::Builtin::Cot:
     case ast::Builtin::Sin:
@@ -2227,6 +2228,65 @@ void Sema::CheckBuiltinParamCall(ast::CallExpr *call, ast::Builtin builtin) {
 void Sema::CheckBuiltinStringCall(ast::CallExpr *call, ast::Builtin builtin) {
   ast::BuiltinType::Kind sql_type;
   switch (builtin) {
+    case ast::Builtin::Chr: {
+      // check to make sure this function has two arguments
+      if(!CheckArgCount(call, 2)) {
+        return;
+      }
+
+      // checking to see if the first argument is an execution context
+      auto exec_ctx_kind = ast::BuiltinType::ExecutionContext;
+      if (!IsPointerToSpecificBuiltin(call->Arguments()[0]->GetType(), exec_ctx_kind)) {
+        ReportIncorrectCallArg(call, 0, GetBuiltinType(exec_ctx_kind)->PointerTo());
+        return;
+      }
+
+      // checking to see if the second argument is a number
+      auto *resolved_type = Resolve(call->Arguments()[1]);
+      if (resolved_type == nullptr) {
+        return;
+      }
+      if (!resolved_type->IsSpecificBuiltin(ast::BuiltinType::Integer)) {
+        ReportIncorrectCallArg(call, 1, ast::StringType::Get(GetContext()));
+        return;
+      }
+
+      // this function returns a string
+      sql_type = ast::BuiltinType::StringVal;
+      call->SetType(ast::BuiltinType::Get(GetContext(), sql_type));
+      break;
+
+    }
+
+    case ast::Builtin::CharLength: {
+      // check to make sure this function has two arguments
+      if(!CheckArgCount(call, 2)) {
+        return;
+      }
+
+      // checking to see if the first argument is an execution context
+      auto exec_ctx_kind = ast::BuiltinType::ExecutionContext;
+      if (!IsPointerToSpecificBuiltin(call->Arguments()[0]->GetType(), exec_ctx_kind)) {
+        ReportIncorrectCallArg(call, 0, GetBuiltinType(exec_ctx_kind)->PointerTo());
+        return;
+      }
+
+      // checking to see if the second argument is a string
+      auto *resolved_type = Resolve(call->Arguments()[1]);
+      if (resolved_type == nullptr) {
+        return;
+      }
+      if (!resolved_type->IsSpecificBuiltin(ast::BuiltinType::StringVal)) {
+        ReportIncorrectCallArg(call, 1, ast::StringType::Get(GetContext()));
+        return;
+      }
+
+      // this function returns a string
+      sql_type = ast::BuiltinType::Integer;
+      call->SetType(ast::BuiltinType::Get(GetContext(), sql_type));
+      break;
+    }
+
     case ast::Builtin::Lower: {
       // check to make sure this function has two arguments
       if (!CheckArgCount(call, 2)) {
@@ -2252,13 +2312,13 @@ void Sema::CheckBuiltinStringCall(ast::CallExpr *call, ast::Builtin builtin) {
 
       // this function returns a string
       sql_type = ast::BuiltinType::StringVal;
+      call->SetType(ast::BuiltinType::Get(GetContext(), sql_type));
       break;
     }
     default:
       UNREACHABLE("Unimplemented string call!!");
   }
 
-  call->SetType(ast::BuiltinType::Get(GetContext(), sql_type));
 }
 
 void Sema::CheckBuiltinCall(ast::CallExpr *call) {
@@ -2519,6 +2579,7 @@ void Sema::CheckBuiltinCall(ast::CallExpr *call) {
       CheckBuiltinIndexIteratorFree(call);
       break;
     }
+    case ast::Builtin::Exp:
     case ast::Builtin::ACos:
     case ast::Builtin::ASin:
     case ast::Builtin::ATan:
@@ -2601,10 +2662,13 @@ void Sema::CheckBuiltinCall(ast::CallExpr *call) {
       CheckBuiltinParamCall(call, builtin);
       break;
     }
+    case ast::Builtin::Chr:
+    case ast::Builtin::CharLength:
     case ast::Builtin::Lower: {
       CheckBuiltinStringCall(call, builtin);
       break;
     }
+
     default: {
       UNREACHABLE("Unhandled builtin!");
     }
