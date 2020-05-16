@@ -196,7 +196,5 @@ public class FunctionsTest extends TestUtility {
     public void testChr() throws SQLException {
          checkStringFunc("chr", "int_val", false, "{");
          checkStringFunc("chr", "int_val", true, null);
-        // checkStringFuncWithName("chr", "int_val", "chr_test_another", false, "Ā");
-        // checkStringFuncWithName("chr", "int_val", "chr_test_utf-8", false, "џ");
     }
 }
