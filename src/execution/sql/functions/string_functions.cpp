@@ -365,7 +365,7 @@ void StringFunctions::Right(UNUSED_ATTRIBUTE exec::ExecutionContext *ctx, String
 
 void StringFunctions::Chr(exec::ExecutionContext *ctx, StringVal *result, const Integer &code) {
   uint64_t num = static_cast<uint64_t>(code.val_);
-  if (num == 0) {
+  if (num == 0 || num > 0x10FFFF) {
     // FIXME: this should properly throw a function error
     *result = StringVal::Null();
   } else {
