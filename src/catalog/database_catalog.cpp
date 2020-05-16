@@ -1782,12 +1782,13 @@ void DatabaseCatalog::BootstrapProcs(const common::ManagedPointer<transaction::T
 
   auto str_type = GetTypeOidForType(type::TypeId::VARCHAR);
 
+  auto int_type = GetTypeOidForType(type::TypeId::INTEGER);
   // Chr
   CreateProcedure(txn, postgres::CHR_PRO_OID, "chr", postgres::INTERNAL_LANGUAGE_OID,
-                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"num"}, {dec_type}, {dec_type}, {}, str_type, "", true);
+                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"num"}, {int_type}, {int_type}, {}, str_type, "", true);
   // CharLength
   CreateProcedure(txn, postgres::CHARLENGTH_PRO_OID, "char_length", postgres::INTERNAL_LANGUAGE_OID,
-                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"str"}, {str_type}, {str_type}, {}, dec_type, "", true);
+                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"str"}, {str_type}, {str_type}, {}, int_type, "", true);
 
   // lower
   CreateProcedure(txn, postgres::LOWER_PRO_OID, "lower", postgres::INTERNAL_LANGUAGE_OID,
@@ -1842,12 +1843,12 @@ void DatabaseCatalog::BootstrapProcContexts(const common::ManagedPointer<transac
   SetProcCtxPtr(txn, postgres::LOWER_PRO_OID, func_context);
   txn->RegisterAbortAction([=]() { delete func_context; });
 
-  func_context = new execution::functions::FunctionContext("chr", type::TypeId::INTEGER, {type::TypeId::INTEGER},
+  func_context = new execution::functions::FunctionContext("chr", type::TypeId::VARCHAR, {type::TypeId::INTEGER},
                                                            execution::ast::Builtin::Chr, true);
   SetProcCtxPtr(txn, postgres::CHR_PRO_OID, func_context);
   txn->RegisterAbortAction([=]() { delete func_context; });
 
-  func_context = new execution::functions::FunctionContext("char_length", type::TypeId::VARCHAR, {type::TypeId::VARCHAR},
+  func_context = new execution::functions::FunctionContext("char_length", type::TypeId::INTEGER, {type::TypeId::VARCHAR},
                                                            execution::ast::Builtin::CharLength, true);
   SetProcCtxPtr(txn, postgres::CHARLENGTH_PRO_OID, func_context);
   txn->RegisterAbortAction([=]() { delete func_context; });
