@@ -32,13 +32,14 @@ class IndexBuilderTests : public TerrierTest {
   catalog::IndexSchema index_schema_;
 
   std::default_random_engine generator_;
-  const uint32_t num_threads_ = 4;
+  const uint32_t num_threads_ = 2;
 
   std::unique_ptr<DBMain> db_main_;
   common::ManagedPointer<transaction::TransactionManager> txn_manager_;
 
   // SqlTable
   storage::SqlTable *sql_table_;
+  storage::DataTable *table_;
   storage::ProjectedRowInitializer tuple_initializer_ =
       storage::ProjectedRowInitializer::Create(std::vector<uint16_t>{1}, std::vector<uint16_t>{1});
 
@@ -60,6 +61,7 @@ class IndexBuilderTests : public TerrierTest {
     StorageTestUtil::ForceOid(&(nonidxcol), catalog::col_oid_t(2));
     table_schema_ = catalog::Schema({idxcol, nonidxcol});
     sql_table_ = new storage::SqlTable(db_main_->GetStorageLayer()->GetBlockStore(), table_schema_);
+    // table_ = sql_table_->getTable();
     tuple_initializer_ = sql_table_->InitializerForProjectedRow({catalog::col_oid_t(1)});
 
     std::vector<catalog::IndexSchema::Column> keycols;
@@ -76,6 +78,20 @@ class IndexBuilderTests : public TerrierTest {
   }
 };
 
+//bool RandomlyUpdateTuple(const storage::TupleSlot slot, Random *generator) {
+//  // generate random update
+//  std::vector<storage::col_id_t> update_col_ids = StorageTestUtil::ProjectionListRandomColumns(layout_, generator);
+//  storage::ProjectedRowInitializer update_initializer =
+//      storage::ProjectedRowInitializer::Create(layout_, update_col_ids);
+//  auto *update_buffer = common::AllocationUtil::AllocateAligned(update_initializer.ProjectedRowSize());
+//  storage::ProjectedRow *update = update_initializer.InitializeRow(update_buffer);
+//  StorageTestUtil::PopulateRandomRow(update, layout_, null_bias_, generator);
+//
+//  bool result = table_->Update(common::ManagedPointer(&txn_), slot, *update);
+//  // the update buffer does not need to live past this scope
+//  delete[] update_buffer;
+//  return result;
+//}
 /**
  * This test creates multiple worker threads that all try to insert [0,num_inserts) as tuples in the table and into the
  * primary key index. At completion of the workload, only num_inserts_ txns should have committed with visible versions
@@ -141,5 +157,191 @@ TEST_F(IndexBuilderTests, OneTxnFullTable) {
   EXPECT_EQ(result, reference);
 
   txn_manager_->Commit(index_scan_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
+}
+
+TEST_F(IndexBuilderTests, ConcurrentCreateIndex) {
+  auto table_txn = txn_manager_->BeginTransaction();
+  auto row_initializer = sql_table_->InitializerForProjectedRow({catalog::col_oid_t(1), catalog::col_oid_t(2)});
+  uint32_t num_inserts = 1000;
+  std::vector<uint32_t> keys;
+  std::unordered_set<TupleSlot> reference;
+  Index *new_index;
+  // Insert initial values
+  for (uint32_t i = 0; i < num_inserts; i++) {
+    // NOLINTNEXTLINE (random is fine for tests)
+    uint32_t key = i;
+    // NOLINTNEXTLINE (random is fine for tests)
+    uint32_t val = i;
+
+    auto redo_record = table_txn->StageWrite(catalog::db_oid_t{1}, catalog::table_oid_t{1}, row_initializer);
+    auto redo = redo_record->Delta();
+    redo->Set<uint32_t, false>(0, key, false);
+    redo->Set<uint32_t, false>(1, val, false);
+
+    keys.push_back(key);
+reference.insert(sql_table_->Insert(common::ManagedPointer(table_txn), redo_record));
+  }
+
+  txn_manager_->Commit(table_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
+
+  // now begin concurrent create index
+
+  auto workload = [&](uint32_t worker_id) {
+        // one thread creates index while others keep inserting
+        if (worker_id == 0) {
+          // first thread creates index
+          auto index_build_txn = txn_manager_->BeginTransaction();
+
+          auto index_builder = IndexBuilder()
+                                   .SetKeySchema(index_schema_)
+                                   .SetSqlTableAndTransactionContext(common::ManagedPointer(sql_table_),
+                                                                     common::ManagedPointer(index_build_txn));
+          new_index = index_builder.Build();
+          index_builder.BulkInsert(new_index);
+
+          txn_manager_->Commit(index_build_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
+
+        } else {
+          for (uint32_t i = 1000+worker_id*1000; i < num_inserts; i++) {
+            auto *const insert_txn = txn_manager_->BeginTransaction();
+
+
+            // NOLINTNEXTLINE (random is fine for tests)
+            uint32_t key = i;
+            // NOLINTNEXTLINE (random is fine for tests)
+            uint32_t val = i;
+
+            auto insert_redo_record = insert_txn->StageWrite(catalog::db_oid_t{1}, catalog::table_oid_t{1}, row_initializer);
+            auto insert_redo = insert_redo_record->Delta();
+            insert_redo->Set<uint32_t, false>(0, key, false);
+            insert_redo->Set<uint32_t, false>(1, val, false);
+
+            sql_table_->Insert(common::ManagedPointer(table_txn), insert_redo_record);
+
+            txn_manager_->Commit(insert_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
+          }
+
+
+        }
+      };
+
+
+  for (uint32_t i = 0; i < num_threads_; i++) {
+    thread_pool_.SubmitTask([i, &workload] { workload(i); });
+  }
+  thread_pool_.WaitUntilAllFinished();
+
+  // scan results
+  auto index_scan_txn = txn_manager_->BeginTransaction();
+  std::vector<TupleSlot> values;
+  new_index->ScanAscending(*index_scan_txn, storage::index::ScanType::OpenBoth, 1, nullptr, nullptr, 0, &values);
+
+  std::unordered_set<TupleSlot> result;
+  for (TupleSlot t : values) {
+    result.insert(t);
+
+  }
+
+
+  EXPECT_EQ(result.size(), num_inserts);
+std::cerr<<"same size"<<std::endl;
+  EXPECT_EQ(result, reference);
+
+  txn_manager_->Commit(index_scan_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
+  }
+
+TEST_F(IndexBuilderTests, CreateIndexWhileUpdate) {
+auto table_txn = txn_manager_->BeginTransaction();
+auto row_initializer = sql_table_->InitializerForProjectedRow({catalog::col_oid_t(1), catalog::col_oid_t(2)});
+uint32_t num_inserts = 1000;
+std::vector<uint32_t> keys;
+std::vector<TupleSlot> reference;
+Index *new_index;
+// Insert initial values
+for (uint32_t i = 0; i < num_inserts; i++) {
+// NOLINTNEXTLINE (random is fine for tests)
+uint32_t key = i;
+// NOLINTNEXTLINE (random is fine for tests)
+uint32_t val = i;
+
+auto redo_record = table_txn->StageWrite(catalog::db_oid_t{1}, catalog::table_oid_t{1}, row_initializer);
+auto redo = redo_record->Delta();
+redo->Set<uint32_t, false>(0, key, false);
+redo->Set<uint32_t, false>(1, val, false);
+
+keys.push_back(key);
+reference.push_back(sql_table_->Insert(common::ManagedPointer(table_txn), redo_record));
+}
+
+txn_manager_->Commit(table_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
+
+// now begin concurrent create index
+
+auto workload = [&](uint32_t worker_id) {
+  // one thread creates index while others keep inserting
+  if (worker_id == 0) {
+    // first thread creates index
+    auto index_build_txn = txn_manager_->BeginTransaction();
+
+    auto index_builder = IndexBuilder()
+        .SetKeySchema(index_schema_)
+        .SetSqlTableAndTransactionContext(common::ManagedPointer(sql_table_),
+                                          common::ManagedPointer(index_build_txn));
+    new_index = index_builder.Build();
+    index_builder.BulkInsert(new_index);
+
+    txn_manager_->Commit(index_build_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
+
+  } else {
+    uint32_t i = 0;
+      for (auto &record: reference) {
+
+        auto *const insert_txn = txn_manager_->BeginTransaction();
+
+        // NOLINTNEXTLINE (random is fine for tests)
+        uint32_t key = i;
+        // NOLINTNEXTLINE (random is fine for tests)
+        uint32_t val = i+1;
+
+        auto insert_redo_record = insert_txn->StageWrite(catalog::db_oid_t{1}, catalog::table_oid_t{1}, row_initializer);
+        insert_redo_record->SetTupleSlot(record);
+        auto insert_redo = insert_redo_record->Delta();
+        insert_redo->Set<uint32_t, false>(0, key, false);
+        insert_redo->Set<uint32_t, false>(1, val, false);
+
+
+        std::cerr<<"before update"<<i<<std::endl;
+        sql_table_->Update(common::ManagedPointer(table_txn), insert_redo_record);
+        std::cerr<<"after update"<<std::endl;
+        txn_manager_->Commit(insert_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
+        i++;
+      }
+  }
+};
+
+
+for (uint32_t i = 0; i < num_threads_; i++) {
+thread_pool_.SubmitTask([i, &workload] { workload(i); });
+}
+thread_pool_.WaitUntilAllFinished();
+
+// scan results
+auto index_scan_txn = txn_manager_->BeginTransaction();
+std::vector<TupleSlot> values;
+new_index->ScanAscending(*index_scan_txn, storage::index::ScanType::OpenBoth, 1, nullptr, nullptr, 0, &values);
+
+std::vector<TupleSlot> result;
+for (TupleSlot t : values) {
+result.push_back(t);
+
+}
+
+
+EXPECT_EQ(result.size(), num_inserts);
+std::cerr<<"same size"<<std::endl;
+//for (auto i = 0; i < result.size(); i++) {
+//EXPECT_EQ(result[i], reference[i]);}
+
+txn_manager_->Commit(index_scan_txn, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
 }  // namespace terrier::storage::index

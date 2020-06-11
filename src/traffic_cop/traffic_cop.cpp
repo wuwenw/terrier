@@ -165,9 +165,17 @@ TrafficCopResult TrafficCop::ExecuteCreateStatement(
       auto create_index_plan = physical_plan.CastManagedPointerTo<planner::CreateIndexPlanNode>();
       bool concurrent = create_index_plan->GetConcurrent();
       if (concurrent) {
-        connection_ctx->Transaction()->SetMustAbort();
-        return {ResultType::ERROR, "ERROR:  CREATE INDEX CONCURRENTLY not implemented"};
-        // TODO(add_index): Implement this
+
+        auto *populate_txn = txn_manager_->BeginTransaction();
+        bool result = execution::sql::DDLExecutors::CreateIndexExecutor(
+            physical_plan.CastManagedPointerTo<planner::CreateIndexPlanNode>(), connection_ctx->Accessor(),
+            common::ManagedPointer(populate_txn));
+
+        // TODO(Wuwen): handle failure
+        if (result) {
+          return {ResultType::COMPLETE, 0};
+        }
+        break;
       }
 
       auto table_oid = create_index_plan->GetTableOid();
