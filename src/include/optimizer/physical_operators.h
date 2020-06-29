@@ -1,26 +1,29 @@
 #pragma once
 
+// THIS HEADER IS HUGE! DO NOT INCLUDE IT IN OTHER HEADERS!
+
 #include <memory>
 #include <string>
 #include <unordered_map>
 #include <utility>
 #include <vector>
+
 #include "catalog/catalog_defs.h"
-#include "catalog/index_schema.h"
-#include "catalog/schema.h"
 #include "common/hash_util.h"
 #include "common/managed_pointer.h"
 #include "optimizer/operator_node_contents.h"
-#include "parser/expression/abstract_expression.h"
 #include "parser/expression_defs.h"
 #include "parser/parser_defs.h"
 #include "parser/statements.h"
 #include "parser/update_statement.h"
-#include "planner/plannodes/create_table_plan_node.h"
 #include "planner/plannodes/plan_node_defs.h"
-#include "type/transient_value.h"
 
 namespace terrier {
+
+namespace catalog {
+class IndexSchema;
+class Schema;
+}  // namespace catalog
 
 namespace parser {
 class AbstractExpression;
@@ -478,19 +481,21 @@ class Limit : public OperatorNodeContents<Limit> {
 };
 
 /**
- * Physical operator for inner nested loop join
+ * Physical operator for inner index join
  */
-class InnerNLJoin : public OperatorNodeContents<InnerNLJoin> {
+class InnerIndexJoin : public OperatorNodeContents<InnerIndexJoin> {
  public:
   /**
+   * @param tbl_oid Table OID
+   * @param idx_oid Index OID
+   * @param scan_type IndexScanType
+   * @param join_keys Join Keys
    * @param join_predicates predicates for join
-   * @param left_keys left keys to join
-   * @param right_keys right keys to join
-   * @return an InnerNLJoin operator
+   * @return an InnerIndexJoin operator
    */
-  static Operator Make(std::vector<AnnotatedExpression> &&join_predicates,
-                       std::vector<common::ManagedPointer<parser::AbstractExpression>> &&left_keys,
-                       std::vector<common::ManagedPointer<parser::AbstractExpression>> &&right_keys);
+  static Operator Make(catalog::table_oid_t tbl_oid, catalog::index_oid_t idx_oid, planner::IndexScanType scan_type,
+                       std::unordered_map<catalog::indexkeycol_oid_t, std::vector<planner::IndexExpression>> join_keys,
+                       std::vector<AnnotatedExpression> join_predicates);
 
   /**
    * Copy
@@ -503,14 +508,26 @@ class InnerNLJoin : public OperatorNodeContents<InnerNLJoin> {
   common::hash_t Hash() const override;
 
   /**
-   * @return Left join keys
+   * @return Table OID
    */
-  const std::vector<common::ManagedPointer<parser::AbstractExpression>> &GetLeftKeys() const { return left_keys_; }
+  catalog::table_oid_t GetTableOID() const { return tbl_oid_; }
 
   /**
-   * @return Right join keys
+   * @return Index OID
    */
-  const std::vector<common::ManagedPointer<parser::AbstractExpression>> &GetRightKeys() const { return right_keys_; }
+  catalog::index_oid_t GetIndexOID() const { return idx_oid_; }
+
+  /**
+   * @return scan type
+   */
+  planner::IndexScanType GetScanType() const { return scan_type_; }
+
+  /**
+   * @return Join Keys
+   */
+  const std::unordered_map<catalog::indexkeycol_oid_t, std::vector<planner::IndexExpression>> &GetJoinKeys() const {
+    return join_keys_;
+  }
 
   /**
    * @return Predicates for the Join
@@ -519,15 +536,58 @@ class InnerNLJoin : public OperatorNodeContents<InnerNLJoin> {
 
  private:
   /**
-   * Left join keys
+   * Table OID
    */
-  std::vector<common::ManagedPointer<parser::AbstractExpression>> left_keys_;
+  catalog::table_oid_t tbl_oid_;
 
   /**
-   * Right join keys
+   * Index OID
    */
-  std::vector<common::ManagedPointer<parser::AbstractExpression>> right_keys_;
+  catalog::index_oid_t idx_oid_;
 
+  /**
+   * Scan Type
+   */
+  planner::IndexScanType scan_type_;
+
+  /**
+   * Join Keys
+   */
+  std::unordered_map<catalog::indexkeycol_oid_t, std::vector<planner::IndexExpression>> join_keys_;
+
+  /**
+   * Predicates for join
+   */
+  std::vector<AnnotatedExpression> join_predicates_;
+};
+
+/**
+ * Physical operator for inner nested loop join
+ */
+class InnerNLJoin : public OperatorNodeContents<InnerNLJoin> {
+ public:
+  /**
+   * @param join_predicates predicates for join
+   * @return an InnerNLJoin operator
+   */
+  static Operator Make(std::vector<AnnotatedExpression> &&join_predicates);
+
+  /**
+   * Copy
+   * @returns copy of this
+   */
+  BaseOperatorNodeContents *Copy() const override;
+
+  bool operator==(const BaseOperatorNodeContents &r) override;
+
+  common::hash_t Hash() const override;
+
+  /**
+   * @return Predicates for the Join
+   */
+  const std::vector<AnnotatedExpression> &GetJoinPredicates() const { return join_predicates_; }
+
+ private:
   /**
    * Predicates for join
    */
@@ -642,7 +702,7 @@ class InnerHashJoin : public OperatorNodeContents<InnerHashJoin> {
    * @param join_predicates predicates for join
    * @param left_keys left keys to join
    * @param right_keys right keys to join
-   * @return an IneerNLJoin operator
+   * @return an InnerNLJoin operator
    */
   static Operator Make(std::vector<AnnotatedExpression> &&join_predicates,
                        std::vector<common::ManagedPointer<parser::AbstractExpression>> &&left_keys,
@@ -1902,6 +1962,7 @@ class DropIndex : public OperatorNodeContents<DropIndex> {
 class DropNamespace : public OperatorNodeContents<DropNamespace> {
  public:
   /**
+   * @param namespace_oid OID of namespace to drop
    * @return
    */
   static Operator Make(catalog::namespace_oid_t namespace_oid);
@@ -1933,6 +1994,10 @@ class DropNamespace : public OperatorNodeContents<DropNamespace> {
 class DropTrigger : public OperatorNodeContents<DropTrigger> {
  public:
   /**
+   * @param database_oid OID of database
+   * @param namespace_oid OID of namespace
+   * @param trigger_oid OID of trigger to drop
+   * @param if_exists existence flag
    * @return
    */
   static Operator Make(catalog::db_oid_t database_oid, catalog::namespace_oid_t namespace_oid,
@@ -1995,6 +2060,10 @@ class DropTrigger : public OperatorNodeContents<DropTrigger> {
 class DropView : public OperatorNodeContents<DropView> {
  public:
   /**
+   * @param database_oid OID of database
+   * @param namespace_oid OID of namespace
+   * @param view_oid OID of view to drop
+   * @param if_exists existence flag
    * @return
    */
   static Operator Make(catalog::db_oid_t database_oid, catalog::namespace_oid_t namespace_oid,
@@ -2049,6 +2118,61 @@ class DropView : public OperatorNodeContents<DropView> {
    * Whether "IF EXISTS" was used
    */
   bool if_exists_;
+};
+
+/**
+ * Physical operator for Analyze
+ */
+class Analyze : public OperatorNodeContents<Analyze> {
+ public:
+  /**
+   * @param database_oid OID of the database
+   * @param table_oid OID of the table
+   * @param columns OIDs of Analyze columns
+   * @return
+   */
+  static Operator Make(catalog::db_oid_t database_oid, catalog::table_oid_t table_oid,
+                       std::vector<catalog::col_oid_t> &&columns);
+
+  /**
+   * Copy
+   * @returns copy of this
+   */
+  BaseOperatorNodeContents *Copy() const override;
+
+  bool operator==(const BaseOperatorNodeContents &r) override;
+  common::hash_t Hash() const override;
+
+  /**
+   * @return OID of the database
+   */
+  const catalog::db_oid_t &GetDatabaseOid() const { return database_oid_; }
+
+  /**
+   * @return OID of the table
+   */
+  const catalog::table_oid_t &GetTableOid() const { return table_oid_; }
+
+  /**
+   * @return columns
+   */
+  std::vector<catalog::col_oid_t> GetColumns() const { return columns_; }
+
+ private:
+  /**
+   * OID of the database
+   */
+  catalog::db_oid_t database_oid_;
+
+  /**
+   * OID of the target table
+   */
+  catalog::table_oid_t table_oid_;
+
+  /**
+   * Vector of column to Analyze
+   */
+  std::vector<catalog::col_oid_t> columns_;
 };
 
 }  // namespace optimizer

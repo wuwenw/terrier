@@ -33,7 +33,7 @@ class SqlBasedTest : public TplTest {
     // Create catalog and test namespace
     test_db_oid_ = catalog_->CreateDatabase(common::ManagedPointer(test_txn_), "test_db", true);
     ASSERT_NE(test_db_oid_, catalog::INVALID_DATABASE_OID) << "Default database does not exist";
-    accessor_ = catalog_->GetAccessor(common::ManagedPointer(test_txn_), test_db_oid_);
+    accessor_ = catalog_->GetAccessor(common::ManagedPointer(test_txn_), test_db_oid_, DISABLED);
     test_ns_oid_ = accessor_->GetDefaultNamespace();
   }
 
@@ -51,15 +51,15 @@ class SqlBasedTest : public TplTest {
 
   void GenerateTestTables(exec::ExecutionContext *exec_ctx) {
     sql::TableGenerator table_generator{exec_ctx, block_store_, test_ns_oid_};
-    table_generator.GenerateTestTables();
+    table_generator.GenerateTestTables(false);
   }
 
   parser::ConstantValueExpression DummyCVE() {
-    return parser::ConstantValueExpression(type::TransientValueFactory::GetInteger(0));
+    return parser::ConstantValueExpression(type::TypeId::INTEGER, execution::sql::Integer(0));
   }
 
   std::unique_ptr<terrier::catalog::CatalogAccessor> MakeAccessor() {
-    return catalog_->GetAccessor(common::ManagedPointer(test_txn_), test_db_oid_);
+    return catalog_->GetAccessor(common::ManagedPointer(test_txn_), test_db_oid_, DISABLED);
   }
 
  private:

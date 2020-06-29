@@ -21,6 +21,8 @@
 #include "execution/vm/bytecode_module.h"
 #include "execution/vm/llvm_engine.h"
 #include "execution/vm/module.h"
+#include "storage/index/index.h"
+#include "storage/sql_table.h"
 
 namespace terrier::execution::compiler::test {
 
@@ -31,7 +33,7 @@ class PRFillerTest : public SqlBasedTest {
     // Make the test tables
     auto exec_ctx = MakeExecCtx();
     sql::TableGenerator table_generator{exec_ctx.get(), BlockStore(), NSOid()};
-    table_generator.GenerateTestTables();
+    table_generator.GenerateTestTables(false);
   }
 
   static std::unique_ptr<vm::Module> MakeModule(CodeGen *codegen, ast::File *root, exec::ExecutionContext *exec_ctx) {

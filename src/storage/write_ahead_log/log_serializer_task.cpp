@@ -1,8 +1,8 @@
 #include "storage/write_ahead_log/log_serializer_task.h"
-#include <algorithm>
+
 #include <queue>
 #include <utility>
-#include <vector>
+
 #include "common/scoped_timer.h"
 #include "common/thread_context.h"
 #include "metrics/metrics_store.h"
@@ -14,13 +14,22 @@ namespace terrier::storage {
 void LogSerializerTask::LogSerializerTaskLoop() {
   auto curr_sleep = serialization_interval_;
   // TODO(Gus): Make max back-off a settings manager setting
-  const auto max_sleep =
-      serialization_interval_ * (1u << 10u);  // We cap the back-off in case of long gaps with no transactions
+  const std::chrono::microseconds max_sleep =
+      std::chrono::microseconds(10000);  // We cap the back-off in case of long gaps with no transactions
+
   do {
     // Serializing is now on the "critical txn path" because txns wait to commit until their logs are serialized. Thus,
     // a sleep is not fast enough. We perform exponential back-off, doubling the sleep duration if we don't process any
-    // buffers in our call to Process. Calls to Process will process as long as new buffers are available.
-    std::this_thread::sleep_for(curr_sleep);
+    // buffers in our call to Process. Calls to Process will process as long as new buffers are available. We only
+    // sleep as part of this exponential backoff when there are logs that need to be processed and we wake up when there
+    // are new logs to be processed.
+    if (empty_) {
+      std::unique_lock<std::mutex> guard(flush_queue_latch_);
+      sleeping_ = true;
+      flush_queue_cv_.wait_for(guard, curr_sleep);
+      sleeping_ = false;
+    }
+
     // If Process did not find any new buffers, we perform exponential back-off to reduce our rate of polling for new
     // buffers. We cap the maximum back-off, since in the case of large gaps of no txns, we don't want to unboundedly
     // sleep
@@ -32,10 +41,18 @@ void LogSerializerTask::LogSerializerTaskLoop() {
 }
 
 bool LogSerializerTask::Process() {
-  uint64_t elapsed_us = 0, num_bytes = 0, num_records = 0;
+  uint64_t num_bytes = 0, num_records = 0;
+  bool logging_metrics_enabled =
+      common::thread_context.metrics_store_ != nullptr &&
+      common::thread_context.metrics_store_->ComponentToRecord(metrics::MetricsComponent::LOGGING);
+  if (logging_metrics_enabled) {
+    // start the operating unit resource tracker
+    common::thread_context.resource_tracker_.Start();
+  }
+
   bool buffers_processed = false;
+
   {
-    common::ScopedTimer<std::chrono::microseconds> scoped_timer(&elapsed_us);
     common::SpinLatch::ScopedSpinLatch serialization_guard(&serialization_latch_);
     TERRIER_ASSERT(serialized_txns_.empty(),
                    "Aggregated txn timestamps should have been handed off to TimestampManager");
@@ -47,13 +64,16 @@ bool LogSerializerTask::Process() {
       // In a short critical section, get all buffers to serialize. We move them to a temp queue to reduce contention on
       // the queue transactions interact with
       {
-        common::SpinLatch::ScopedSpinLatch queue_guard(&flush_queue_latch_);
+        std::unique_lock<std::mutex> guard(flush_queue_latch_);
 
         // There are no new buffers, so we can break
-        if (flush_queue_.empty()) break;
+        if (flush_queue_.empty()) {
+          break;
+        }
 
         temp_flush_queue_ = std::move(flush_queue_);
         flush_queue_ = std::queue<RecordBufferSegment *>();
+        empty_ = true;
       }
 
       // Loop over all the new buffers we found
@@ -75,6 +95,9 @@ bool LogSerializerTask::Process() {
     // Mark the last buffer that was written to as full
     if (buffers_processed) HandFilledBufferToWriter();
 
+    // Mark the last buffer that was written to as full
+    if (filled_buffer_ != nullptr) HandFilledBufferToWriter();
+
     // Bulk remove all the transactions we serialized. This prevents having to take the TimestampManager's latch once
     // for each timestamp we remove.
     for (const auto &txns : serialized_txns_) {
@@ -82,9 +105,15 @@ bool LogSerializerTask::Process() {
     }
     serialized_txns_.clear();
   }
-  if (num_bytes > 0 && common::thread_context.metrics_store_ != nullptr &&
-      common::thread_context.metrics_store_->ComponentEnabled(metrics::MetricsComponent::LOGGING))
-    common::thread_context.metrics_store_->RecordSerializerData(elapsed_us, num_bytes, num_records);
+
+  if (logging_metrics_enabled) {
+    // Stop the resource tracker for this operating unit
+    common::thread_context.resource_tracker_.Stop();
+    if (num_bytes > 0) {
+      auto &resource_metrics = common::thread_context.resource_tracker_.GetMetrics();
+      common::thread_context.metrics_store_->RecordSerializerData(num_bytes, num_records, resource_metrics);
+    }
+  }
 
   return buffers_processed;
 }

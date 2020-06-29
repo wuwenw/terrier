@@ -3,15 +3,31 @@
 #include <utility>
 #include <vector>
 
-#include "catalog/catalog_accessor.h"
+#include "brain/operating_unit.h"
+#include "catalog/catalog_defs.h"
 #include "common/managed_pointer.h"
 #include "execution/exec/output.h"
+#include "execution/exec_defs.h"
 #include "execution/sql/memory_pool.h"
+#include "execution/sql/memory_tracker.h"
 #include "execution/util/region.h"
-#include "planner/plannodes/output_schema.h"
-#include "transaction/transaction_context.h"
-#include "transaction/transaction_manager.h"
-#include "type/transient_value.h"
+#include "metrics/metrics_defs.h"
+
+namespace terrier::parser {
+class ConstantValueExpression;
+}  // namespace terrier::parser
+
+namespace terrier::catalog {
+class CatalogAccessor;
+}  // namespace terrier::catalog
+
+namespace terrier::planner {
+class OutputSchema;
+}  // namespace terrier::planner
+
+namespace terrier::transaction {
+class TransactionContext;
+}  // namespace terrier::transaction
 
 namespace terrier::execution::exec {
 /**
@@ -32,7 +48,7 @@ class EXPORT ExecutionContext {
     /**
      * Create a new allocator
      */
-    StringAllocator() : region_("") {}
+    explicit StringAllocator(common::ManagedPointer<sql::MemoryTracker> tracker) : region_(""), tracker_(tracker) {}
 
     /**
      * This class cannot be copied or moved.
@@ -58,6 +74,8 @@ class EXPORT ExecutionContext {
 
    private:
     util::Region region_;
+    // Metadata tracker for memory allocations
+    common::ManagedPointer<sql::MemoryTracker> tracker_;
   };
 
   /**
@@ -70,14 +88,7 @@ class EXPORT ExecutionContext {
    */
   ExecutionContext(catalog::db_oid_t db_oid, common::ManagedPointer<transaction::TransactionContext> txn,
                    const OutputCallback &callback, const planner::OutputSchema *schema,
-                   const common::ManagedPointer<catalog::CatalogAccessor> accessor)
-      : db_oid_(db_oid),
-        txn_(txn),
-        mem_pool_(std::make_unique<sql::MemoryPool>(nullptr)),
-        buffer_(schema == nullptr ? nullptr
-                                  : std::make_unique<OutputBuffer>(mem_pool_.get(), schema->GetColumns().size(),
-                                                                   ComputeTupleSize(schema), callback)),
-        accessor_(accessor) {}
+                   common::ManagedPointer<catalog::CatalogAccessor> accessor);
 
   /**
    * @return the transaction used by this query
@@ -111,9 +122,36 @@ class EXPORT ExecutionContext {
   catalog::CatalogAccessor *GetAccessor() { return accessor_.Get(); }
 
   /**
+   * Start the resource tracker
+   */
+  void StartResourceTracker(metrics::MetricsComponent component);
+
+  /**
+   * End the resource tracker and record the metrics
+   * @param name the string name get printed out with the time
+   * @param len the length of the string name
+   */
+  void EndResourceTracker(const char *name, uint32_t len);
+
+  /**
+   * End the resource tracker for a pipeline and record the metrics
+   * @param query_id query identifier
+   * @param pipeline_id id of the pipeline
+   */
+  void EndPipelineTracker(query_id_t query_id, pipeline_id_t pipeline_id);
+
+  /**
    * @return the db oid
    */
   catalog::db_oid_t DBOid() { return db_oid_; }
+
+  /**
+   * Set the mode for this execution.
+   * This only records the mode and serves the metrics collection purpose, which does not have any impact on the
+   * actual execution.
+   * @param mode the integer value of the execution mode to record
+   */
+  void SetExecutionMode(uint8_t mode) { execution_mode_ = mode; }
 
   /**
    * Set the accessor
@@ -125,13 +163,15 @@ class EXPORT ExecutionContext {
    * Set the execution parameters.
    * @param params The exection parameters.
    */
-  void SetParams(std::vector<type::TransientValue> &&params) { params_ = std::move(params); }
+  void SetParams(common::ManagedPointer<const std::vector<parser::ConstantValueExpression>> params) {
+    params_ = params;
+  }
 
   /**
    * @param param_idx index of parameter to access
    * @return immutable parameter at provided index
    */
-  const type::TransientValue &GetParam(uint32_t param_idx) const { return params_[param_idx]; }
+  const parser::ConstantValueExpression &GetParam(uint32_t param_idx) const;
 
   /**
    * INSERT, UPDATE, and DELETE queries return a number for the rows affected, so this should be incremented in the root
@@ -139,14 +179,25 @@ class EXPORT ExecutionContext {
    */
   uint64_t &RowsAffected() { return rows_affected_; }
 
+  /**
+   * Set the PipelineOperatingUnits
+   * @param op PipelineOperatingUnits for executing the given query
+   */
+  void SetPipelineOperatingUnits(common::ManagedPointer<brain::PipelineOperatingUnits> op) {
+    pipeline_operating_units_ = op;
+  }
+
  private:
   catalog::db_oid_t db_oid_;
   common::ManagedPointer<transaction::TransactionContext> txn_;
+  std::unique_ptr<sql::MemoryTracker> mem_tracker_;
   std::unique_ptr<sql::MemoryPool> mem_pool_;
   std::unique_ptr<OutputBuffer> buffer_;
   StringAllocator string_allocator_;
+  common::ManagedPointer<brain::PipelineOperatingUnits> pipeline_operating_units_;
   common::ManagedPointer<catalog::CatalogAccessor> accessor_;
-  std::vector<type::TransientValue> params_;
+  common::ManagedPointer<const std::vector<parser::ConstantValueExpression>> params_;
+  uint8_t execution_mode_;
   uint64_t rows_affected_ = 0;
 };
 }  // namespace terrier::execution::exec

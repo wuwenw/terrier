@@ -99,6 +99,9 @@ namespace terrier::execution::vm {
                                                                                                                       \
   /* Execution Context */                                                                                             \
   F(ExecutionContextGetMemoryPool, OperandType::Local, OperandType::Local)                                            \
+  F(ExecutionContextStartResourceTracker, OperandType::Local, OperandType::Local)                                     \
+  F(ExecutionContextEndResourceTracker, OperandType::Local, OperandType::Local)                                       \
+  F(ExecutionContextEndPipelineTracker, OperandType::Local, OperandType::Local, OperandType::Local)                   \
                                                                                                                       \
   /* Thread State Container */                                                                                        \
   F(ThreadStateContainerInit, OperandType::Local, OperandType::Local)                                                 \
@@ -170,15 +173,20 @@ namespace terrier::execution::vm {
   F(FilterManagerRunFilters, OperandType::Local, OperandType::Local)                                                  \
   F(FilterManagerFree, OperandType::Local)                                                                            \
                                                                                                                       \
+  /* Date functions */                                                                                                \
+  F(ExtractYear, OperandType::Local, OperandType::Local)                                                              \
+                                                                                                                      \
   /* SQL type comparisons */                                                                                          \
   F(ForceBoolTruth, OperandType::Local, OperandType::Local)                                                           \
+  F(InitSqlNull, OperandType::Local)                                                                                  \
   F(InitBoolVal, OperandType::Local, OperandType::Local)                                                              \
   F(InitInteger, OperandType::Local, OperandType::Local)                                                              \
   F(InitReal, OperandType::Local, OperandType::Local)                                                                 \
+  F(IntegerToReal, OperandType::Local, OperandType::Local)                                                            \
   F(InitDate, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local)                         \
   F(InitTimestamp, OperandType::Local, OperandType::Local)                                                            \
-  F(InitTimestampHMSu, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local,                \
-    OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local)                                   \
+  F(InitTimestampYMDHMSMU, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local,            \
+    OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local)               \
   F(InitString, OperandType::Local, OperandType::Imm8, OperandType::Imm8)                                             \
   F(InitVarlen, OperandType::Local, OperandType::Local)                                                               \
   F(LessThanBoolVal, OperandType::Local, OperandType::Local, OperandType::Local)                                      \
@@ -334,7 +342,7 @@ namespace terrier::execution::vm {
   /* Sorting */                                                                                                       \
   F(SorterInit, OperandType::Local, OperandType::Local, OperandType::FunctionId, OperandType::Local)                  \
   F(SorterAllocTuple, OperandType::Local, OperandType::Local)                                                         \
-  F(SorterAllocTupleTopK, OperandType::Local, OperandType::Local)                                                     \
+  F(SorterAllocTupleTopK, OperandType::Local, OperandType::Local, OperandType::Local)                                 \
   F(SorterAllocTupleTopKFinish, OperandType::Local, OperandType::Local)                                               \
   F(SorterSort, OperandType::Local)                                                                                   \
   F(SorterSortParallel, OperandType::Local, OperandType::Local, OperandType::Local)                                   \
@@ -467,6 +475,12 @@ namespace terrier::execution::vm {
   F(Substring, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local)    \
   F(Trim, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local)                             \
   F(Upper, OperandType::Local, OperandType::Local, OperandType::Local)                                                \
+  F(NpRunnersEmitInt, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local,                 \
+    OperandType::Local)                                                                                               \
+  F(NpRunnersEmitReal, OperandType::Local, OperandType::Local, OperandType::Local, OperandType::Local,                \
+    OperandType::Local)                                                                                               \
+  F(NpRunnersDummyInt, OperandType::Local)                                                                            \
+  F(NpRunnersDummyReal, OperandType::Local)                                                                           \
                                                                                                                       \
   /* String functions */                                                                                              \
   F(GetParamBool, OperandType::Local, OperandType::Local, OperandType::Local)                                         \

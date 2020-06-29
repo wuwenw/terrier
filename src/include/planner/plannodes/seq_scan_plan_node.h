@@ -11,6 +11,7 @@
 #include "parser/expression/column_value_expression.h"
 #include "planner/plannodes/abstract_plan_node.h"
 #include "planner/plannodes/abstract_scan_plan_node.h"
+#include "planner/plannodes/plan_visitor.h"
 
 namespace terrier::planner {
 
@@ -121,6 +122,8 @@ class SeqScanPlanNode : public AbstractScanPlanNode {
 
   bool operator==(const AbstractPlanNode &rhs) const override;
 
+  void Accept(common::ManagedPointer<PlanVisitor> v) const override { v->Visit(this); }
+
   nlohmann::json ToJson() const override;
   std::vector<std::unique_ptr<parser::AbstractExpression>> FromJson(const nlohmann::json &j) override;
 
@@ -136,6 +139,6 @@ class SeqScanPlanNode : public AbstractScanPlanNode {
   catalog::table_oid_t table_oid_;
 };
 
-DEFINE_JSON_DECLARATIONS(SeqScanPlanNode);
+DEFINE_JSON_HEADER_DECLARATIONS(SeqScanPlanNode);
 
 }  // namespace terrier::planner

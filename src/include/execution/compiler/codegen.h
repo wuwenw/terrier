@@ -5,7 +5,7 @@
 #include <utility>
 #include <vector>
 
-#include "catalog/catalog_accessor.h"
+#include "brain/operating_unit.h"
 #include "execution/ast/ast.h"
 #include "execution/ast/ast_node_factory.h"
 #include "execution/ast/context.h"
@@ -14,10 +14,16 @@
 #include "execution/sema/error_reporter.h"
 #include "execution/util/region.h"
 #include "parser/expression_defs.h"
-#include "planner/plannodes/index_scan_plan_node.h"
-#include "type/transient_value.h"
-#include "type/transient_value_peeker.h"
+#include "planner/plannodes/plan_node_defs.h"
 #include "type/type_id.h"
+
+namespace terrier::parser {
+class ConstantValueExpression;
+}  // namespace terrier::parser
+
+namespace terrier::catalog {
+class CatalogAccessor;
+}  // namespace terrier::catalog
 
 namespace terrier::execution::compiler {
 
@@ -72,7 +78,7 @@ class CodeGen {
   /**
    * @return the catalog accessor
    */
-  catalog::CatalogAccessor *Accessor() { return exec_ctx_->GetAccessor(); }
+  catalog::CatalogAccessor *Accessor();
 
   /**
    * @return the execution context
@@ -98,6 +104,18 @@ class CodeGen {
    * @return the exec ctx's identifier
    */
   ast::Identifier GetExecCtxVar() { return exec_ctx_var_; }
+
+  /**
+   * @return PipelineOperatingUnits instance
+   */
+  brain::PipelineOperatingUnits *GetPipelineOperatingUnits() { return pipeline_operating_units_.get(); }
+
+  /**
+   * @return release ownership of the PipelineOperatingUnits instance
+   */
+  std::unique_ptr<brain::PipelineOperatingUnits> ReleasePipelineOperatingUnits() {
+    return std::move(pipeline_operating_units_);
+  }
 
   /**
    * Creates the File node for the query
@@ -167,10 +185,10 @@ class CodeGen {
   ast::Decl *MakeStruct(ast::Identifier struct_name, util::RegionVector<ast::FieldDecl *> &&fields);
 
   /**
-   * @param transient_val the transient value to read
+   * @param const_val the CVE to read
    * @return the value stored in transient_val
    */
-  ast::Expr *PeekValue(const terrier::type::TransientValue &transient_val);
+  ast::Expr *PeekValue(const parser::ConstantValueExpression &const_val);
 
   /**
    * Convert from terrier type to TPL expr type
@@ -272,6 +290,23 @@ class CodeGen {
    */
   ast::Expr *MemberExpr(ast::Identifier lhs, ast::Identifier rhs);
 
+  /**
+   * @param expr The expression to be checked.
+   * @return The generated null check.
+   */
+  ast::Expr *IsSqlNull(ast::Expr *expr);
+
+  /**
+   * @param expr The expression to be checked.
+   * @return The generated not null check.
+   */
+  ast::Expr *IsSqlNotNull(ast::Expr *expr);
+
+  /**
+   * @param expr An expression whose type is the type of NULL to create.
+   * @return The generated NULL.
+   */
+  ast::Expr *NullToSql(ast::Expr *expr);
   /**
    * @param num The number to convert to a sql Integer.
    * @return The generated sql Integer
@@ -539,6 +574,13 @@ class CodeGen {
    */
   ast::Expr *OneArgCall(ast::Builtin builtin, ast::Expr *arg);
 
+  /**
+   * Generic way to call functions that take in no arguments
+   * @param builtin builtin function to call
+   * @return The expression corresponding to the builtin call.
+   */
+  ast::Expr *ZeroArgCall(ast::Builtin builtin);
+
  private:
   // Counter for the identifiers. Allows the creation of unique names.
   uint64_t id_count_{0};
@@ -549,6 +591,7 @@ class CodeGen {
   std::unique_ptr<ast::Context> ast_ctx_;
   ast::AstNodeFactory factory_;
   exec::ExecutionContext *exec_ctx_;
+  std::unique_ptr<brain::PipelineOperatingUnits> pipeline_operating_units_;
 
   // Identifiers that are always needed
   // Identifier of the state struct

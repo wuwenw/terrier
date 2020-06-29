@@ -9,7 +9,7 @@
 namespace terrier::execution::compiler {
 HashJoinLeftTranslator::HashJoinLeftTranslator(const terrier::planner::HashJoinPlanNode *op,
                                                execution::compiler::CodeGen *codegen)
-    : OperatorTranslator(codegen),
+    : OperatorTranslator(codegen, brain::ExecutionOperatingUnitType::HASHJOIN_BUILD),
       op_(op),
       hash_val_{codegen->NewIdentifier("hash_val")},
       build_struct_{codegen->NewIdentifier("BuildRow")},
@@ -52,7 +52,11 @@ void HashJoinLeftTranslator::InitializeStructs(util::RegionVector<ast::Decl *> *
     fields.emplace_back(codegen_->MakeField(mark_, codegen_->BuiltinType(ast::BuiltinType::Bool)));
   }
   // Make the struct
-  decls->emplace_back(codegen_->MakeStruct(build_struct_, std::move(fields)));
+  auto *decl = codegen_->MakeStruct(build_struct_, std::move(fields));
+  TERRIER_ASSERT(ast::StructDecl::classof(decl), "Expected StructDecl");
+
+  struct_decl_ = reinterpret_cast<ast::StructDecl *>(decl);
+  decls->emplace_back(struct_decl_);
 }
 
 // Call @joinHTInit on the hash table
@@ -139,7 +143,7 @@ ast::Expr *HashJoinLeftTranslator::GetChildOutput(uint32_t child_idx, uint32_t a
 HashJoinRightTranslator::HashJoinRightTranslator(const terrier::planner::HashJoinPlanNode *op,
                                                  execution::compiler::CodeGen *codegen,
                                                  execution::compiler::OperatorTranslator *left)
-    : OperatorTranslator{codegen},
+    : OperatorTranslator{codegen, brain::ExecutionOperatingUnitType::HASHJOIN_PROBE},
       op_(op),
       left_(dynamic_cast<HashJoinLeftTranslator *>(left)),
       hash_val_{codegen->NewIdentifier("hash_val")},

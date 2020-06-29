@@ -4,6 +4,7 @@
 
 #include "common/macros.h"
 #include "common/strong_typedef.h"
+#include "execution/ast/type.h"
 #include "execution/exec/execution_context.h"
 #include "execution/sql/aggregation_hash_table.h"
 #include "execution/sql/aggregators.h"
@@ -11,6 +12,7 @@
 #include "execution/sql/functions/arithmetic_functions.h"
 #include "execution/sql/functions/comparison_functions.h"
 #include "execution/sql/functions/is_null_predicate.h"
+#include "execution/sql/functions/runners_functions.h"
 #include "execution/sql/functions/string_functions.h"
 #include "execution/sql/index_iterator.h"
 #include "execution/sql/join_hash_table.h"
@@ -22,7 +24,8 @@
 #include "execution/sql/thread_state_container.h"
 #include "execution/util/execution_common.h"
 #include "execution/util/hash.h"
-#include "util/time_util.h"
+#include "metrics/metrics_defs.h"
+#include "parser/expression/constant_value_expression.h"
 
 // All VM terrier::bytecode op handlers must use this macro
 #define VM_OP EXPORT
@@ -194,6 +197,22 @@ VM_OP_HOT void OpReturn() {}
 VM_OP_HOT void OpExecutionContextGetMemoryPool(terrier::execution::sql::MemoryPool **const memory,
                                                terrier::execution::exec::ExecutionContext *const exec_ctx) {
   *memory = exec_ctx->GetMemoryPool();
+}
+
+VM_OP_HOT void OpExecutionContextStartResourceTracker(terrier::execution::exec::ExecutionContext *const exec_ctx,
+                                                      terrier::metrics::MetricsComponent component) {
+  exec_ctx->StartResourceTracker(component);
+}
+
+VM_OP_HOT void OpExecutionContextEndResourceTracker(terrier::execution::exec::ExecutionContext *const exec_ctx,
+                                                    const terrier::execution::sql::StringVal &name) {
+  exec_ctx->EndResourceTracker(name.Content(), name.len_);
+}
+
+VM_OP_HOT void OpExecutionContextEndPipelineTracker(terrier::execution::exec::ExecutionContext *const exec_ctx,
+                                                    terrier::execution::query_id_t query_id,
+                                                    terrier::execution::pipeline_id_t pipeline_id) {
+  exec_ctx->EndPipelineTracker(query_id, pipeline_id);
 }
 
 void OpThreadStateContainerInit(terrier::execution::sql::ThreadStateContainer *thread_state_container,
@@ -582,6 +601,15 @@ VM_OP void OpFilterManagerRunFilters(terrier::execution::sql::FilterManager *fil
 VM_OP void OpFilterManagerFree(terrier::execution::sql::FilterManager *filter_manager);
 
 // ---------------------------------------------------------
+// Date functions
+// ---------------------------------------------------------
+
+VM_OP_HOT void OpExtractYear(terrier::execution::sql::Integer *result, const terrier::execution::sql::DateVal *input) {
+  result->is_null_ = input->is_null_;
+  if (!input->is_null_) result->val_ = input->val_.ExtractYear();
+}
+
+// ---------------------------------------------------------
 // Scalar SQL comparisons
 // ---------------------------------------------------------
 
@@ -589,12 +617,14 @@ VM_OP_HOT void OpForceBoolTruth(bool *result, terrier::execution::sql::BoolVal *
   *result = input->ForceTruth();
 }
 
+VM_OP_HOT void OpInitSqlNull(terrier::execution::sql::Val *result) { *result = terrier::execution::sql::Val::Null(); }
+
 VM_OP_HOT void OpInitBoolVal(terrier::execution::sql::BoolVal *result, bool input) {
   result->is_null_ = false;
   result->val_ = input;
 }
 
-VM_OP_HOT void OpInitInteger(terrier::execution::sql::Integer *result, int32_t input) {
+VM_OP_HOT void OpInitInteger(terrier::execution::sql::Integer *result, int64_t input) {
   result->is_null_ = false;
   result->val_ = input;
 }
@@ -604,9 +634,15 @@ VM_OP_HOT void OpInitReal(terrier::execution::sql::Real *result, double input) {
   result->val_ = input;
 }
 
+VM_OP_HOT void OpIntegerToReal(terrier::execution::sql::Real *result, const terrier::execution::sql::Integer *input) {
+  result->is_null_ = input->is_null_;
+  if (!input->is_null_) result->val_ = static_cast<double>(input->val_);
+}
+
 VM_OP_HOT void OpInitDate(terrier::execution::sql::DateVal *result, int32_t year, uint32_t month, uint32_t day) {
   result->is_null_ = false;
-  result->val_ = terrier::execution::sql::Date::FromYMD(year, month, day);
+  auto res = terrier::execution::sql::Date::FromYMD(year, month, day);
+  result->val_ = res;
 }
 
 VM_OP_HOT void OpInitTimestamp(terrier::execution::sql::TimestampVal *result, uint64_t usec) {
@@ -614,10 +650,12 @@ VM_OP_HOT void OpInitTimestamp(terrier::execution::sql::TimestampVal *result, ui
   result->val_ = terrier::execution::sql::Timestamp::FromMicroseconds(usec);
 }
 
-VM_OP_HOT void OpInitTimestampHMSu(terrier::execution::sql::TimestampVal *result, int32_t year, uint32_t month,
-                                   uint32_t day, uint8_t hour, uint8_t minute, uint8_t sec, uint64_t usec) {
+VM_OP_HOT void OpInitTimestampYMDHMSMU(terrier::execution::sql::TimestampVal *result, int32_t year, int32_t month,
+                                       int32_t day, int32_t hour, int32_t minute, int32_t sec, int32_t milli,
+                                       int32_t micro) {
   result->is_null_ = false;
-  result->val_ = terrier::execution::sql::Timestamp::FromHMSu(year, month, day, hour, minute, sec, usec);
+  auto res = terrier::execution::sql::Timestamp::FromYMDHMSMU(year, month, day, hour, minute, sec, milli, micro);
+  result->val_ = res;
 }
 
 VM_OP_HOT void OpInitString(terrier::execution::sql::StringVal *result, uint64_t length, uintptr_t data) {
@@ -1299,13 +1337,37 @@ VM_OP_WARM void OpPow(terrier::execution::sql::Real *result, const terrier::exec
 // Null/Not Null predicates
 // ---------------------------------------------------------
 
-VM_OP_WARM void OpValIsNull(terrier::execution::sql::BoolVal *result, const terrier::execution::sql::Val *val) {
-  terrier::execution::sql::IsNullPredicate::IsNull(result, *val);
+VM_OP_WARM void OpValIsNull(bool *result, const terrier::execution::sql::Val *val) {
+  *result = terrier::execution::sql::IsNullPredicate::IsNull(*val);
 }
 
-VM_OP_WARM void OpValIsNotNull(terrier::execution::sql::BoolVal *result, const terrier::execution::sql::Val *val) {
-  terrier::execution::sql::IsNullPredicate::IsNotNull(result, *val);
+VM_OP_WARM void OpValIsNotNull(bool *result, const terrier::execution::sql::Val *val) {
+  *result = terrier::execution::sql::IsNullPredicate::IsNotNull(*val);
 }
+
+// ---------------------------------------------------------
+// Internal mini-runner functions
+// ---------------------------------------------------------
+
+VM_OP_WARM void OpNpRunnersEmitInt(terrier::execution::exec::ExecutionContext *ctx,
+                                   const terrier::execution::sql::Integer *num_tuples,
+                                   const terrier::execution::sql::Integer *num_cols,
+                                   const terrier::execution::sql::Integer *num_int_cols,
+                                   const terrier::execution::sql::Integer *num_real_cols) {
+  terrier::execution::sql::MiniRunnersFunctions::EmitTuples(ctx, *num_tuples, *num_cols, *num_int_cols, *num_real_cols);
+}
+
+VM_OP_WARM void OpNpRunnersEmitReal(terrier::execution::exec::ExecutionContext *ctx,
+                                    const terrier::execution::sql::Integer *num_tuples,
+                                    const terrier::execution::sql::Integer *num_cols,
+                                    const terrier::execution::sql::Integer *num_int_cols,
+                                    const terrier::execution::sql::Integer *num_real_cols) {
+  terrier::execution::sql::MiniRunnersFunctions::EmitTuples(ctx, *num_tuples, *num_cols, *num_int_cols, *num_real_cols);
+}
+
+VM_OP_WARM void OpNpRunnersDummyInt(UNUSED_ATTRIBUTE terrier::execution::exec::ExecutionContext *ctx) {}
+
+VM_OP_WARM void OpNpRunnersDummyReal(UNUSED_ATTRIBUTE terrier::execution::exec::ExecutionContext *ctx) {}
 
 // ---------------------------------------------------------
 // String functions
@@ -1637,62 +1699,27 @@ VM_OP void OpOutputAlloc(terrier::execution::exec::ExecutionContext *exec_ctx, t
 VM_OP void OpOutputFinalize(terrier::execution::exec::ExecutionContext *exec_ctx);
 
 // Parameter calls
-#define GEN_SCALAR_PARAM_GET(Name, SqlType, PeekType)                                                         \
+#define GEN_SCALAR_PARAM_GET(Name, SqlType)                                                                   \
   VM_OP_HOT void OpGetParam##Name(terrier::execution::sql::SqlType *ret,                                      \
                                   terrier::execution::exec::ExecutionContext *exec_ctx, uint32_t param_idx) { \
-    const auto &trans_val = exec_ctx->GetParam(param_idx);                                                    \
-    if (trans_val.Null()) {                                                                                   \
+    const auto &cve = exec_ctx->GetParam(param_idx);                                                          \
+    if (cve.IsNull()) {                                                                                       \
       ret->is_null_ = true;                                                                                   \
     } else {                                                                                                  \
-      auto val = terrier::type::TransientValuePeeker::PeekType(trans_val);                                    \
-      ret->val_ = val;                                                                                        \
-      ret->is_null_ = false;                                                                                  \
+      *ret = cve.Get##SqlType();                                                                              \
     }                                                                                                         \
   }
 
-GEN_SCALAR_PARAM_GET(Bool, BoolVal, PeekBoolean)
-GEN_SCALAR_PARAM_GET(TinyInt, Integer, PeekTinyInt)
-GEN_SCALAR_PARAM_GET(SmallInt, Integer, PeekSmallInt)
-GEN_SCALAR_PARAM_GET(Int, Integer, PeekInteger)
-GEN_SCALAR_PARAM_GET(BigInt, Integer, PeekBigInt)
-GEN_SCALAR_PARAM_GET(Real, Real, PeekDecimal)
-GEN_SCALAR_PARAM_GET(Double, Real, PeekDecimal)
+GEN_SCALAR_PARAM_GET(Bool, BoolVal)
+GEN_SCALAR_PARAM_GET(TinyInt, Integer)
+GEN_SCALAR_PARAM_GET(SmallInt, Integer)
+GEN_SCALAR_PARAM_GET(Int, Integer)
+GEN_SCALAR_PARAM_GET(BigInt, Integer)
+GEN_SCALAR_PARAM_GET(Real, Real)
+GEN_SCALAR_PARAM_GET(Double, Real)
+GEN_SCALAR_PARAM_GET(DateVal, DateVal)
+GEN_SCALAR_PARAM_GET(TimestampVal, TimestampVal)
+GEN_SCALAR_PARAM_GET(String, StringVal)
 #undef GEN_SCALAR_PARAM_GET
-
-VM_OP_HOT void OpGetParamDateVal(terrier::execution::sql::DateVal *ret,
-                                 terrier::execution::exec::ExecutionContext *exec_ctx, uint32_t param_idx) {
-  const auto &trans_val = exec_ctx->GetParam(param_idx);
-  if (trans_val.Null()) {
-    ret->is_null_ = true;
-  } else {
-    auto date = terrier::type::TransientValuePeeker::PeekDate(trans_val);
-    *ret = terrier::execution::sql::DateVal(!date);
-    ret->is_null_ = false;
-  }
-}
-
-VM_OP_HOT void OpGetParamTimestampVal(terrier::execution::sql::TimestampVal *ret,
-                                      terrier::execution::exec::ExecutionContext *exec_ctx, uint32_t param_idx) {
-  const auto &trans_val = exec_ctx->GetParam(param_idx);
-  if (trans_val.Null()) {
-    ret->is_null_ = true;
-  } else {
-    auto ts = terrier::type::TransientValuePeeker::PeekTimestamp(trans_val);
-    *ret = terrier::execution::sql::TimestampVal(!ts);
-    ret->is_null_ = false;
-  }
-}
-
-VM_OP_HOT void OpGetParamString(terrier::execution::sql::StringVal *ret,
-                                terrier::execution::exec::ExecutionContext *exec_ctx, uint32_t param_idx) {
-  const auto &trans_val = exec_ctx->GetParam(param_idx);
-  if (trans_val.Null()) {
-    ret->is_null_ = true;
-  } else {
-    auto val = terrier::type::TransientValuePeeker::PeekVarChar(trans_val);
-    *ret = terrier::execution::sql::StringVal(val.data(), static_cast<uint32_t>(val.size()));
-    ret->is_null_ = false;
-  }
-}
 
 }  // extern "C"

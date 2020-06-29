@@ -1,5 +1,7 @@
 #pragma once
 
+// THIS HEADER IS HUGE! DO NOT INCLUDE IT IN OTHER HEADERS!
+
 #include <memory>
 #include <string>
 #include <unordered_map>
@@ -15,10 +17,9 @@
 #include "parser/statements.h"
 #include "parser/update_statement.h"
 #include "planner/plannodes/plan_node_defs.h"
-#include "type/transient_value.h"
 
 namespace terrier::parser {
-class AbstractExpressionn;
+class AbstractExpression;
 class UpdateClause;
 }  // namespace terrier::parser
 
@@ -1949,6 +1950,61 @@ class LogicalDropView : public OperatorNodeContents<LogicalDropView> {
    * Whether "IF EXISTS" was used
    */
   bool if_exists_;
+};
+
+/**
+ * Logical operator for Analyze
+ */
+class LogicalAnalyze : public OperatorNodeContents<LogicalAnalyze> {
+ public:
+  /**
+   * @param database_oid OID of the database
+   * @param table_oid OID of the table
+   * @param columns OIDs of Analyze columns
+   * @return
+   */
+  static Operator Make(catalog::db_oid_t database_oid, catalog::table_oid_t table_oid,
+                       std::vector<catalog::col_oid_t> &&columns);
+
+  /**
+   * Copy
+   * @returns copy of this
+   */
+  BaseOperatorNodeContents *Copy() const override;
+
+  bool operator==(const BaseOperatorNodeContents &r) override;
+  common::hash_t Hash() const override;
+
+  /**
+   * @return OID of the database
+   */
+  const catalog::db_oid_t &GetDatabaseOid() const { return database_oid_; }
+
+  /**
+   * @return OID of the table
+   */
+  const catalog::table_oid_t &GetTableOid() const { return table_oid_; }
+
+  /**
+   * @return columns
+   */
+  std::vector<catalog::col_oid_t> GetColumns() const { return columns_; }
+
+ private:
+  /**
+   * OID of the database
+   */
+  catalog::db_oid_t database_oid_;
+
+  /**
+   * OID of the target table
+   */
+  catalog::table_oid_t table_oid_;
+
+  /**
+   * Vector of column to Analyze
+   */
+  std::vector<catalog::col_oid_t> columns_;
 };
 
 }  // namespace terrier::optimizer

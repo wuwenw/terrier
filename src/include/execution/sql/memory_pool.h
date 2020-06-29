@@ -1,5 +1,7 @@
 #pragma once
 
+#include <common/managed_pointer.h>
+
 #include <algorithm>
 #include <atomic>
 #include <memory>
@@ -21,7 +23,7 @@ class EXPORT MemoryPool {
    * Create a pool that reports to the given memory tracker @em tracker.
    * @param tracker The tracker to use to report allocations.
    */
-  explicit MemoryPool(MemoryTracker *tracker);
+  explicit MemoryPool(common::ManagedPointer<sql::MemoryTracker> tracker);
 
   /**
    * This class cannot be copied or moved.
@@ -104,11 +106,11 @@ class EXPORT MemoryPool {
   /**
    * Get the tracker
    */
-  MemoryTracker *GetTracker() { return tracker_; }
+  common::ManagedPointer<MemoryTracker> GetTracker() { return tracker_; }
 
  private:
   // Metadata tracker for memory allocations
-  MemoryTracker *tracker_;
+  common::ManagedPointer<MemoryTracker> tracker_;
 
   //
   static std::atomic<uint64_t> k_mmap_threshold;
@@ -162,7 +164,7 @@ class MemoryPoolAllocator {
    * @param ptr array to deallocate
    * @param n size of the array
    */
-  void deallocate(T *ptr, std::size_t n) { memory_->Deallocate(ptr, n); }  // NOLINT
+  void deallocate(T *ptr, std::size_t n) { memory_->Deallocate(ptr, sizeof(T) * n); }  // NOLINT
 
   /**
    * Equality comparison for two memory pools

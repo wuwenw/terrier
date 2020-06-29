@@ -10,8 +10,7 @@
 #include "parser/insert_statement.h"
 #include "planner/plannodes/abstract_plan_node.h"
 #include "planner/plannodes/abstract_scan_plan_node.h"
-#include "type/transient_value.h"
-#include "type/transient_value_peeker.h"
+#include "planner/plannodes/plan_visitor.h"
 
 namespace terrier::planner {
 
@@ -220,6 +219,8 @@ class InsertPlanNode : public AbstractPlanNode {
 
   bool operator==(const AbstractPlanNode &rhs) const override;
 
+  void Accept(common::ManagedPointer<PlanVisitor> v) const override { v->Visit(this); }
+
   nlohmann::json ToJson() const override;
   std::vector<std::unique_ptr<parser::AbstractExpression>> FromJson(const nlohmann::json &j) override;
 
@@ -259,6 +260,6 @@ class InsertPlanNode : public AbstractPlanNode {
   std::vector<catalog::index_oid_t> index_oids_;
 };
 
-DEFINE_JSON_DECLARATIONS(InsertPlanNode);
+DEFINE_JSON_HEADER_DECLARATIONS(InsertPlanNode);
 
 }  // namespace terrier::planner

@@ -3,12 +3,15 @@
 #include <utility>
 #include <vector>
 
+#include "catalog/catalog_accessor.h"
 #include "execution/compiler/function_builder.h"
 #include "execution/compiler/translator_factory.h"
+#include "storage/index/index.h"
+#include "storage/sql_table.h"
 
 namespace terrier::execution::compiler {
 InsertTranslator::InsertTranslator(const terrier::planner::InsertPlanNode *op, CodeGen *codegen)
-    : OperatorTranslator(codegen),
+    : OperatorTranslator(codegen, brain::ExecutionOperatingUnitType::INSERT),
       op_(op),
       inserter_(codegen->NewIdentifier("inserter")),
       insert_pr_(codegen->NewIdentifier("insert_pr")),

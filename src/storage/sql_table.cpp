@@ -1,9 +1,10 @@
 #include "storage/sql_table.h"
 
 #include <map>
-#include <set>
+#include <string>
 #include <vector>
 
+#include "catalog/schema.h"
 #include "common/macros.h"
 #include "storage/storage_util.h"
 
@@ -91,4 +92,5 @@ catalog::col_oid_t SqlTable::OidForColId(const col_id_t col_id) const {
                                       [&](const auto &oid_to_id) -> bool { return oid_to_id.second == col_id; });
   return oid_to_id->first;
 }
+
 }  // namespace terrier::storage

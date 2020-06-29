@@ -22,7 +22,7 @@ class FilterManagerTest : public SqlBasedTest {
     SqlBasedTest::SetUp();
     exec_ctx_ = MakeExecCtx();
     sql::TableGenerator table_generator{exec_ctx_.get(), BlockStore(), NSOid()};
-    table_generator.GenerateTestTables();
+    table_generator.GenerateTestTables(false);
   }
 
  protected:
@@ -53,7 +53,7 @@ uint32_t VectorizedLt500(ProjectedColumnsIterator *pci) {
 }
 
 // NOLINTNEXTLINE
-TEST_F(FilterManagerTest, SimpleFilterManagerTest) {
+TEST_F(FilterManagerTest, DISABLED_SimpleFilterManagerTest) {
   FilterManager filter(bandit::Policy::Kind::FixedAction);
   filter.StartNewClause();
   filter.InsertClauseFlavor(TaaTLt500);
@@ -77,7 +77,7 @@ TEST_F(FilterManagerTest, SimpleFilterManagerTest) {
 }
 
 // NOLINTNEXTLINE
-TEST_F(FilterManagerTest, AdaptiveFilterManagerTest) {
+TEST_F(FilterManagerTest, DISABLED_AdaptiveFilterManagerTest) {
   FilterManager filter(bandit::Policy::Kind::EpsilonGreedy);
   filter.StartNewClause();
   filter.InsertClauseFlavor(HobbledTaaTLt500);
