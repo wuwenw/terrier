@@ -1,5 +1,7 @@
 #pragma once
 
+#include <llvm/ADT/StringMap.h>
+
 #include <array>
 #include <initializer_list>
 #include <memory>
@@ -17,7 +19,6 @@
 #include "execution/sql/runtime_types.h"
 #include "execution/sql/sql.h"
 #include "execution/util/region_containers.h"
-#include "llvm/ADT/StringMap.h"
 #include "parser/expression_defs.h"
 #include "planner/plannodes/plan_node_defs.h"
 

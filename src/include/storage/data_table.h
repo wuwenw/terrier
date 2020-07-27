@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstring>
+#include <limits>
 #include <unordered_map>
 #include <vector>
 
@@ -243,6 +244,9 @@ class DataTable {
    * @return Number of blocks in the data table.
    */
   uint32_t GetNumBlocks() const { return blocks_.size(); }
+
+  /** @return Maximum number of blocks in the data table. */
+  static uint32_t GetMaxBlocks() { return std::numeric_limits<uint32_t>::max(); }
 
   /**
    * @return a coarse estimation on the number of tuples in this table

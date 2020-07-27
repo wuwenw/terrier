@@ -1,11 +1,12 @@
 #pragma once
 
+#include <llvm/Support/MathExtras.h>
+
 #include <cstdint>
 #include <cstdlib>
 #include <numeric>
 
 #include "common/macros.h"
-#include "llvm/Support/MathExtras.h"
 
 namespace terrier::common {
 
@@ -14,6 +15,8 @@ namespace terrier::common {
  */
 class MathUtil {
  public:
+  /** This class cannot be instantiated. */
+  DISALLOW_INSTANTIATION(MathUtil);
   /** This class cannot be copied or moved. */
   DISALLOW_COPY_AND_MOVE(MathUtil);
 

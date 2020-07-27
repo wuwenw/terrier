@@ -6,6 +6,8 @@
 #include <sys/types.h>
 #endif
 
+#include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/StringRef.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -18,8 +20,6 @@
 #include <unordered_set>
 
 #include "common/macros.h"
-#include "llvm/ADT/SmallVector.h"
-#include "llvm/ADT/StringRef.h"
 #include "loggers/execution_logger.h"
 
 namespace terrier::execution {

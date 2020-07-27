@@ -1,3 +1,5 @@
+#include <tbb/tbb.h>
+
 #include <algorithm>
 #include <functional>
 #include <limits>
@@ -9,7 +11,6 @@
 #include "execution/sql/thread_state_container.h"
 #include "execution/sql_test.h"
 #include "ips4o/ips4o.hpp"
-#include "tbb/tbb.h"
 
 #define TestAllSigned(FuncName, Args...) \
   FuncName<int8_t>(Args);                \

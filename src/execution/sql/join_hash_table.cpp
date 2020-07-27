@@ -1,5 +1,8 @@
 #include "execution/sql/join_hash_table.h"
 
+#include <llvm/ADT/STLExtras.h>
+#include <tbb/parallel_for_each.h>
+
 #include <algorithm>
 #include <limits>
 #include <utility>
@@ -13,9 +16,7 @@
 #include "execution/util/memory.h"
 #include "execution/util/timer.h"
 #include "libcount/hll.h"
-#include "llvm/ADT/STLExtras.h"
 #include "loggers/execution_logger.h"
-#include "tbb/parallel_for_each.h"
 
 namespace terrier::execution::sql {
 

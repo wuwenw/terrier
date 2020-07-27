@@ -1,12 +1,13 @@
 #pragma once
 
+#include <llvm/ADT/StringRef.h>
+
 #include <memory>
 
 #include "execution/ast/builtins.h"
 #include "execution/ast/identifier.h"
 #include "execution/ast/type.h"
 #include "execution/util/region.h"
-#include "llvm/ADT/StringRef.h"
 #include "type/type_id.h"
 
 namespace terrier::execution {

@@ -1,5 +1,9 @@
 #include "execution/tpl.h"
 
+#include <llvm/Support/CommandLine.h>
+#include <llvm/Support/MemoryBuffer.h>
+#include <llvm/Support/Path.h>
+#include <tbb/task_scheduler_init.h>
 #include <unistd.h>
 
 #include <algorithm>
@@ -28,16 +32,12 @@
 #include "execution/vm/llvm_engine.h"
 #include "execution/vm/module.h"
 #include "execution/vm/vm.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/MemoryBuffer.h"
-#include "llvm/Support/Path.h"
 #include "loggers/execution_logger.h"
 #include "main/db_main.h"
 #include "metrics/metrics_thread.h"
 #include "parser/expression/constant_value_expression.h"
 #include "settings/settings_manager.h"
 #include "storage/garbage_collector.h"
-#include "tbb/task_scheduler_init.h"
 #include "transaction/deferred_action_manager.h"
 #include "transaction/timestamp_manager.h"
 

@@ -1,5 +1,7 @@
 #include "execution/sql/aggregation_hash_table.h"
 
+#include <tbb/parallel_for_each.h>
+
 #include <algorithm>
 #include <memory>
 #include <numeric>
@@ -20,7 +22,6 @@
 #include "libcount/hll.h"
 #include "loggers/execution_logger.h"
 #include "spdlog/fmt/fmt.h"
-#include "tbb/parallel_for_each.h"
 
 namespace terrier::execution::sql {
 

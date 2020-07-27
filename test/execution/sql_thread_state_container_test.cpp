@@ -1,3 +1,5 @@
+#include <tbb/tbb.h>
+
 #include <limits>
 #include <memory>
 #include <numeric>
@@ -7,7 +9,6 @@
 
 #include "execution/sql/thread_state_container.h"
 #include "execution/tpl_test.h"
-#include "tbb/tbb.h"
 
 namespace terrier::execution::sql::test {
 

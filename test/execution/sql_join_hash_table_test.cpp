@@ -1,3 +1,5 @@
+#include <tbb/tbb.h>
+
 #include <random>
 #include <vector>
 
@@ -6,7 +8,6 @@
 #include "execution/sql/join_hash_table.h"
 #include "execution/sql/thread_state_container.h"
 #include "execution/tpl_test.h"
-#include "tbb/tbb.h"
 
 // TODO(WAN): can't FRIEND_TEST unless in the same namespace
 namespace terrier::execution::sql {
@@ -22,7 +23,7 @@ class JoinHashTableTest : public TplTest {
  public:
   JoinHashTableTest() : memory_(nullptr) {}
 
-  MemoryPool *memory() { return &memory_; }
+  MemoryPool *Memory() { return &memory_; }
 
  private:
   MemoryPool memory_;
@@ -48,7 +49,7 @@ TEST_F(JoinHashTableTest, LazyInsertionTest) {
     }
   }
 
-  JoinHashTable join_hash_table(exec_settings, memory(), sizeof(Tuple));
+  JoinHashTable join_hash_table(exec_settings, Memory(), sizeof(Tuple));
 
   // The table
   for (const auto &tuple : tuples) {
@@ -215,7 +216,7 @@ TEST_F(JoinHashTableTest, PerfTest) {
   const uint32_t num_tuples = 10000000;
 
   auto bench = [this](bool concise, uint32_t num_tuples) {
-    JoinHashTable join_hash_table(memory(), sizeof(Tuple), concise);
+    JoinHashTable join_hash_table(Memory(), sizeof(Tuple), concise);
 
     //
     // Build random input

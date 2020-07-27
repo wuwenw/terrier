@@ -1,3 +1,5 @@
+#include <tbb/tbb.h>
+
 #include <atomic>
 #include <memory>
 #include <random>
@@ -12,7 +14,6 @@
 #include "execution/sql/vector_projection.h"
 #include "execution/sql/vector_projection_iterator.h"
 #include "execution/sql_test.h"
-#include "tbb/tbb.h"
 
 namespace terrier::execution::sql {
 

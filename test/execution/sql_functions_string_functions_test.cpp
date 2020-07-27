@@ -1,3 +1,5 @@
+#include <llvm/ADT/StringRef.h>
+
 #include <limits>
 #include <memory>
 #include <random>
@@ -9,7 +11,6 @@
 #include "execution/sql/value.h"
 #include "execution/sql_test.h"
 #include "execution/util/timer.h"
-#include "llvm/ADT/StringRef.h"
 
 namespace terrier::execution::sql::test {
 

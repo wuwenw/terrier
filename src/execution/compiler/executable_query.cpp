@@ -6,12 +6,9 @@
 #include "common/error/exception.h"
 #include "execution/ast/ast_dump.h"
 #include "execution/ast/context.h"
+#include "execution/compiler/compiler.h"
 #include "execution/exec/execution_context.h"
-#include "execution/parsing/parser.h"
-#include "execution/parsing/scanner.h"
 #include "execution/sema/error_reporter.h"
-#include "execution/sema/sema.h"
-#include "execution/vm/bytecode_generator.h"
 #include "execution/vm/module.h"
 #include "loggers/execution_logger.h"
 #include "transaction/transaction_context.h"
@@ -64,7 +61,7 @@ void ExecutableQuery::Fragment::Run(byte query_state[], vm::ExecutionMode mode) 
 
 // For mini_runners.cpp.
 namespace {
-static std::string GetFileName(const std::string &path) {
+std::string GetFileName(const std::string &path) {
   std::size_t size = path.size();
   std::size_t found = path.find_last_of("/\\");
   return path.substr(found + 1, size - found - 5);
@@ -90,6 +87,12 @@ ExecutableQuery::ExecutableQuery(const std::string &contents,
                                  const exec::ExecutionSettings &exec_settings)
     // TODO(WAN): Giant hack for the plan. The whole point is that you have no plan.
     : plan_(reinterpret_cast<const planner::AbstractPlanNode &>(exec_settings)), exec_settings_(exec_settings) {
+  context_region_ = std::make_unique<util::Region>("context_region");
+  errors_region_ = std::make_unique<util::Region>("error_region");
+  errors_ = std::make_unique<sema::ErrorReporter>(errors_region_.get());
+  ast_context_ = std::make_unique<ast::Context>(context_region_.get(), errors_.get());
+
+  // Let's scan the source
   std::string source;
   if (is_file) {
     auto file = llvm::MemoryBuffer::getFile(contents);
@@ -104,35 +107,8 @@ ExecutableQuery::ExecutableQuery(const std::string &contents,
     source = contents;
   }
 
-  // Let's scan the source
-  context_region_ = std::make_unique<util::Region>("context_region");
-  errors_region_ = std::make_unique<util::Region>("error_region");
-  errors_ = std::make_unique<sema::ErrorReporter>(errors_region_.get());
-  ast_context_ = std::make_unique<ast::Context>(context_region_.get(), errors_.get());
-
-  parsing::Scanner scanner(source.data(), source.length());
-  parsing::Parser parser(&scanner, ast_context_.get());
-
-  // Parse
-  ast::AstNode *root = parser.Parse();
-  if (errors_->HasErrors()) {
-    EXECUTION_LOG_ERROR("Parsing errors: \n {}", errors_->SerializeErrors());
-    throw std::runtime_error("Parsing Error!");
-  }
-
-  // Type check
-  sema::Sema type_check(ast_context_.get());
-  type_check.Run(root);
-  if (errors_->HasErrors()) {
-    EXECUTION_LOG_ERROR("Type-checking errors: \n {}", errors_->SerializeErrors());
-    throw std::runtime_error("Type Checking Error!");
-  }
-
-  EXECUTION_LOG_DEBUG("Converted: \n {}", execution::ast::AstDump::Dump(root));
-
-  // Convert to bytecode
-  auto bytecode_module = vm::BytecodeGenerator::Compile(root, "tmp-tpl");
-  auto module = std::make_unique<vm::Module>(std::move(bytecode_module));
+  auto input = Compiler::Input("tpl_source", ast_context_.get(), &source);
+  auto module = compiler::Compiler::RunCompilationSimple(input);
 
   std::vector<std::string> functions{"main"};
   std::vector<std::string> teardown_functions;

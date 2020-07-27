@@ -1,11 +1,12 @@
 #pragma once
 
+#include <llvm/Support/Casting.h>
+
 #include <string>
 #include <type_traits>
 
 #include "common/macros.h"
 #include "execution/sql/sql.h"
-#include "llvm/Support/Casting.h"
 
 namespace terrier::execution::sql {
 

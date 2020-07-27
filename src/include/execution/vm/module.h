@@ -1,5 +1,7 @@
 #pragma once
 
+#include <llvm/Support/Memory.h>
+
 #include <atomic>
 #include <memory>
 #include <mutex>  // NOLINT
@@ -10,7 +12,6 @@
 #include "execution/vm/bytecode_module.h"
 #include "execution/vm/llvm_engine.h"
 #include "execution/vm/vm_defs.h"
-#include "llvm/Support/Memory.h"
 
 namespace terrier::execution::vm {
 
