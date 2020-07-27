@@ -13,7 +13,7 @@
 #include "parser/expression_util.h"
 #include "planner/plannodes/seq_scan_plan_node.h"
 #include "storage/sql_table.h"
-
+#include "loggers/execution_logger.h"
 namespace terrier::execution::compiler {
 
 SeqScanTranslator::SeqScanTranslator(const planner::SeqScanPlanNode &plan, CompilationContext *compilation_context,
@@ -338,6 +338,7 @@ std::vector<catalog::col_oid_t> SeqScanTranslator::MakeInputOids(const catalog::
   if (op.GetColumnOids().empty()) {
     return {schema.GetColumn(0).Oid()};
   }
+
   return op.GetColumnOids();
 }
 
