@@ -243,8 +243,9 @@ EXECUTION_LOG_INFO("finish building orer by plan node");
 auto last_op = order_by.get();
 
 auto exec_ctx = execution::exec::ExecutionContext(db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_),
-                                                  nullptr, nullptr,
+                                                  nullptr, last_op->GetOutputSchema().Get(),
                                                   common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
+
 
 
 auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
