@@ -35,11 +35,8 @@ class Workload {
   Workload(common::ManagedPointer<DBMain> db_main, const std::string &db_name, const std::string &table_root,
            transaction::TransactionContext *txn, execution::exec::ExecutionContext *exec_ctx);
 
-
-
  private:
   void GenerateTPCHTables(execution::exec::ExecutionContext *exec_ctx, const std::string &dir_name);
-
 
   std::vector<parser::ConstantValueExpression> GetQueryParams(const std::string &query_name);
 

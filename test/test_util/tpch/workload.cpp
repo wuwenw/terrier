@@ -11,8 +11,8 @@
 
 namespace terrier::tpch {
 
-Workload::Workload(common::ManagedPointer<DBMain> db_main, const std::string &db_name, const std::string &table_root, transaction::TransactionContext * txn,
-                   execution::exec::ExecutionContext *exec_ctx) {
+Workload::Workload(common::ManagedPointer<DBMain> db_main, const std::string &db_name, const std::string &table_root,
+                   transaction::TransactionContext *txn, execution::exec::ExecutionContext *exec_ctx) {
   // cache db main and members
   db_main_ = db_main;
   txn_manager_ = db_main_->GetTransactionLayer()->GetTransactionManager();

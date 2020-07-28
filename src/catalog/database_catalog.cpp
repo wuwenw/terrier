@@ -17,6 +17,7 @@
 #include "catalog/postgres/pg_type.h"
 #include "catalog/schema.h"
 #include "execution/functions/function_context.h"
+#include "loggers/execution_logger.h"
 #include "nlohmann/json.hpp"
 #include "storage/index/index.h"
 #include "storage/sql_table.h"
@@ -25,7 +26,6 @@
 #include "transaction/transaction_defs.h"
 #include "transaction/transaction_manager.h"
 #include "type/type_id.h"
-#include "loggers/execution_logger.h"
 
 namespace terrier::catalog {
 
@@ -903,8 +903,7 @@ table_oid_t DatabaseCatalog::GetTableOid(const common::ManagedPointer<transactio
   const auto oid_pair = GetClassOidKind(txn, ns, name);
   if (oid_pair.first == catalog::NULL_OID || oid_pair.second != postgres::ClassKind::REGULAR_TABLE) {
     if (oid_pair.first == catalog::NULL_OID) {
-    }
-    else {
+    } else {
     }
     // User called GetTableOid on an object that doesn't have type REGULAR_TABLE
     return INVALID_TABLE_OID;

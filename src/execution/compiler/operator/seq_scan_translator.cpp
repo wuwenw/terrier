@@ -9,11 +9,11 @@
 #include "execution/compiler/loop.h"
 #include "execution/compiler/pipeline.h"
 #include "execution/compiler/work_context.h"
+#include "loggers/execution_logger.h"
 #include "parser/expression/column_value_expression.h"
 #include "parser/expression_util.h"
 #include "planner/plannodes/seq_scan_plan_node.h"
 #include "storage/sql_table.h"
-#include "loggers/execution_logger.h"
 namespace terrier::execution::compiler {
 
 SeqScanTranslator::SeqScanTranslator(const planner::SeqScanPlanNode &plan, CompilationContext *compilation_context,
