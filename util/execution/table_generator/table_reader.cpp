@@ -79,6 +79,7 @@ catalog::table_oid_t TableReader::CreateTable(TableInfo *info) {
 
   auto table_oid = exec_ctx_->GetAccessor()->CreateTable(ns_oid_, info->table_name_, tmp_schema);
   EXECUTION_LOG_INFO("table_oid {} on table {}.", (uint32_t)table_oid, info->table_name_);
+  EXECUTION_LOG_INFO("table_oid {} on table {}.", (uint32_t)exec_ctx_->GetAccessor()->GetTableOid(exec_ctx_->GetAccessor()->GetDefaultNamespace(), info->table_name_), info->table_name_);
   auto &schema = exec_ctx_->GetAccessor()->GetSchema(table_oid);
   auto sql_table = new storage::SqlTable(common::ManagedPointer(store_), schema);
   exec_ctx_->GetAccessor()->SetTablePointer(table_oid, sql_table);

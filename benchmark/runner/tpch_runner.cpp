@@ -62,6 +62,7 @@ class TPCHRunner : public benchmark::Fixture {
                                                       common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
 
 
+
     auto metrics_manager = db_main_->GetMetricsManager();
     metrics_manager->EnableMetric(metrics::MetricsComponent::EXECUTION, 0);
     metrics_manager->EnableMetric(metrics::MetricsComponent::GARBAGECOLLECTION, 0);
@@ -81,15 +82,8 @@ class TPCHRunner : public benchmark::Fixture {
 
 BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
 execution::compiler::test::ExpressionMaker expr_maker;
-// auto table_oid = accessor_->GetTableOid("lineitem");
-catalog::table_oid_t table_oid = (catalog::table_oid_t)1011;
+auto table_oid = accessor_->GetTableOid("lineitem");
 
-// verify table content
-auto num = accessor_->GetTable(table_oid)->GetNumTuple();
-EXECUTION_LOG_INFO("table has {} tuples", num);
-
-
-EXECUTION_LOG_INFO("table_oid {} on table.", (uint32_t)table_oid);
 const auto &l_schema = accessor_->GetSchema(table_oid);
 // Scan the table
 std::unique_ptr<planner::AbstractPlanNode> l_seq_scan;
@@ -133,7 +127,6 @@ l_seq_scan = builder.SetOutputSchema(std::move(schema))
                  .SetColumnOids(std::move(col_oids))
     .Build();
 }
-EXECUTION_LOG_INFO("finish building seq scan plan node");
 // Make the aggregate
 std::unique_ptr<planner::AbstractPlanNode> agg;
 execution::compiler::test::OutputSchemaHelper agg_out{0, &expr_maker};
@@ -199,7 +192,6 @@ agg = builder.SetOutputSchema(std::move(schema))
     .Build();
 }
 
-EXECUTION_LOG_INFO("finish building agg plan node");
 // Order By
 std::unique_ptr<planner::AbstractPlanNode> order_by;
 execution::compiler::test::OutputSchemaHelper order_by_out{0, &expr_maker};
@@ -238,21 +230,19 @@ order_by = builder.SetOutputSchema(std::move(schema))
     .Build();
 }
 
-EXECUTION_LOG_INFO("finish building orer by plan node");
 // Compile plan
 auto last_op = order_by.get();
+  execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
 
 auto exec_ctx = execution::exec::ExecutionContext(db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_),
-                                                  nullptr, last_op->GetOutputSchema().Get(),
+                                                  printer, last_op->GetOutputSchema().Get(),
                                                   common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
 
 
 
 auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
-EXECUTION_LOG_INFO("Compile");
 // Run Once to force compilation
 query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
-EXECUTION_LOG_INFO("Run Once to force compilation");
 // Only time execution
 for (auto _ : state) {
 query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
@@ -260,6 +250,6 @@ query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Inte
 }
 
 
-BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
+BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 
 }  // namespace terrier::runner

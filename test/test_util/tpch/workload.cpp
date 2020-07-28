@@ -19,14 +19,10 @@ Workload::Workload(common::ManagedPointer<DBMain> db_main, const std::string &db
   block_store_ = db_main_->GetStorageLayer()->GetBlockStore();
   catalog_ = db_main_->GetCatalogLayer()->GetCatalog();
   txn_manager_ = db_main_->GetTransactionLayer()->GetTransactionManager();
-
+  ns_oid_ = exec_ctx->GetAccessor()->GetDefaultNamespace();
 
   // create the TPCH database and compile the queries
   GenerateTPCHTables(exec_ctx, table_root);
-  // LoadTPCHQueries(&exec_ctx, queries);
-
-  // Initialize the TPCH outputs
-  sample_output_.InitTestOutput();
 
   txn_manager_->Commit(txn, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
@@ -42,22 +38,4 @@ void Workload::GenerateTPCHTables(execution::exec::ExecutionContext *exec_ctx, c
     EXECUTION_LOG_INFO("Wrote {} rows on table {}.", num_rows, table_name);
   }
 }
-
-
-std::vector<parser::ConstantValueExpression> Workload::GetQueryParams(const std::string &query_name) {
-  std::vector<parser::ConstantValueExpression> params;
-  params.reserve(8);
-
-  // Add the identifier for each pipeline. At most 8 query pipelines for now
-  for (int i = 0; i < 8; ++i) {
-    const std::string query_val = query_name + "_p" + std::to_string(i + 1);
-
-    auto string_val = execution::sql::ValueUtil::CreateStringVal(query_val);
-    params.emplace_back(type::TypeId::VARCHAR, string_val.first, std::move(string_val.second));
-  }
-
-  return params;
-}
-
-
 }  // namespace terrier::tpch
