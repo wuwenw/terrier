@@ -1324,6 +1324,395 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     }
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
+//
+//BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
+//  execution::compiler::test::ExpressionMaker expr_maker;
+//  // Supplier.
+//  auto s_table_oid = accessor_->GetTableOid("supplier");
+//  const auto &s_schema = accessor_->GetSchema(s_table_oid);
+//  // Partsupp.
+//  auto ps_table_oid = accessor_->GetTableOid("partsupp");
+//  const auto &ps_schema = accessor_->GetSchema(ps_table_oid);
+//  // Nation.
+//  auto n_table_oid = accessor_->GetTableOid("nation");
+//  const auto &n_schema = accessor_->GetSchema(n_table_oid);
+//
+//  std::unique_ptr<planner::AbstractPlanNode> n_seq_scan1;
+//  execution::compiler::test::OutputSchemaHelper n_seq_scan_out1{0, &expr_maker};
+//  {
+//    // Read all needed columns
+//    auto n_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
+//    auto n_nationkey =
+//        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+//    std::vector<catalog::col_oid_t> n1_col_oids = {
+//        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid()
+//    };
+//    // Make the output schema
+//    n_seq_scan_out1.AddOutput("n_nationkey", n_nationkey);
+//    auto schema = n_seq_scan_out1.MakeSchema();
+//    // Predicate
+//    auto germany = expr_maker.Constant("GERMANY");
+//    auto predicate = expr_maker.ComparisonEq(n_name, germany);
+//    // Build
+//    planner::SeqScanPlanNode::Builder builder;
+//    n_seq_scan1 = builder.SetOutputSchema(std::move(schema))
+//        .SetScanPredicate(predicate)
+//        .SetTableOid(n_table_oid)
+//                      .SetColumnOids(std::move(n1_col_oids))
+//        .Build();
+//  }
+//  std::unique_ptr<planner::AbstractPlanNode> n_seq_scan2;
+//  execution::compiler::test::OutputSchemaHelper n_seq_scan_out2{0, &expr_maker};
+//  {
+//    // Read all needed columns
+//    auto n_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
+//    auto n_nationkey =
+//        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+//    std::vector<catalog::col_oid_t> n2_col_oids = {
+//        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid()
+//    };
+//    // Make the output schema
+//    n_seq_scan_out2.AddOutput("n_nationkey", n_nationkey);
+//    auto schema = n_seq_scan_out2.MakeSchema();
+//    // Predicate
+//    auto germany = expr_maker.Constant("GERMANY");
+//    auto predicate = expr_maker.ComparisonEq(n_name, germany);
+//    // Build
+//    planner::SeqScanPlanNode::Builder builder;
+//    n_seq_scan2 = builder.SetOutputSchema(std::move(schema))
+//        .SetScanPredicate(predicate)
+//        .SetTableOid(n_table_oid)
+//                      .SetColumnOids(std::move(n2_col_oids))
+//        .Build();
+//  }
+//
+//  // Scan supplier
+//  std::unique_ptr<planner::AbstractPlanNode> s_seq_scan1;
+//  execution::compiler::test::OutputSchemaHelper s_seq_scan_out1{1, &expr_maker};
+//  {
+//    // Read all needed columns
+//    auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
+//    auto s_nationkey =
+//        expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
+//    std::vector<catalog::col_oid_t> s1_col_oids = {
+//        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_nationkey").Oid()
+//    };
+//    // Make the output schema
+//    s_seq_scan_out1.AddOutput("s_suppkey", s_suppkey);
+//    s_seq_scan_out1.AddOutput("s_nationkey", s_nationkey);
+//    auto schema = s_seq_scan_out1.MakeSchema();
+//
+//    // Build
+//    planner::SeqScanPlanNode::Builder builder;
+//    s_seq_scan1 = builder.SetOutputSchema(std::move(schema))
+//        .SetScanPredicate(nullptr)
+//        .SetTableOid(s_table_oid)
+//                      .SetColumnOids(std::move(s1_col_oids))
+//        .Build();
+//  }
+//  std::unique_ptr<planner::AbstractPlanNode> s_seq_scan2;
+//  execution::compiler::test::OutputSchemaHelper s_seq_scan_out2{1, &expr_maker};
+//  {
+//    // Read all needed columns
+//    auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
+//    auto s_nationkey =
+//        expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
+//    std::vector<catalog::col_oid_t> s2_col_oids = {
+//        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_nationkey").Oid()
+//    };
+//    // Make the output schema
+//    s_seq_scan_out2.AddOutput("s_suppkey", s_suppkey);
+//    s_seq_scan_out2.AddOutput("s_nationkey", s_nationkey);
+//    auto schema = s_seq_scan_out2.MakeSchema();
+//
+//    // Build
+//    planner::SeqScanPlanNode::Builder builder;
+//    s_seq_scan2 = builder.SetOutputSchema(std::move(schema))
+//        .SetScanPredicate(nullptr)
+//        .SetTableOid(s_table_oid)
+//                      .SetColumnOids(std::move(s2_col_oids))
+//        .Build();
+//  }
+//
+//  // Scan partsupp
+//  std::unique_ptr<planner::AbstractPlanNode> ps_seq_scan1;
+//  execution::compiler::test::OutputSchemaHelper ps_seq_scan_out1{1, &expr_maker};
+//  {
+//    // Read all needed columns
+//    auto ps_suppkey =
+//        expr_maker.CVE(ps_schema.GetColumn("ps_suppkey").Oid(), type::TypeId::INTEGER);
+//    auto ps_partkey =
+//        expr_maker.CVE(ps_schema.GetColumn("ps_partkey").Oid(), type::TypeId::INTEGER);
+//    auto ps_supplycost =
+//        expr_maker.CVE(ps_schema.GetColumn("ps_supplycost").Oid(), type::TypeId::DECIMAL);
+//    auto ps_availqty =
+//        expr_maker.CVE(ps_schema.GetColumn("ps_availqty").Oid(), type::TypeId::INTEGER);
+//    std::vector<catalog::col_oid_t> ps_col_oids = {
+//        ps_schema.GetColumn("ps_suppkey").Oid(), ps_schema.GetColumn("ps_partkey").Oid(), ps_schema.GetColumn("ps_supplycost").Oid(), ps_schema.GetColumn("ps_availqty").Oid()
+//    };
+//    // Make the output schema
+//    ps_seq_scan_out1.AddOutput("ps_suppkey", ps_suppkey);
+//    ps_seq_scan_out1.AddOutput("ps_partkey", ps_partkey);
+//    ps_seq_scan_out1.AddOutput("ps_supplycost", ps_supplycost);
+//    ps_seq_scan_out1.AddOutput("ps_availqty", ps_availqty);
+//    auto schema = ps_seq_scan_out1.MakeSchema();
+//    // Build
+//    planner::SeqScanPlanNode::Builder builder;
+//    ps_seq_scan1 = builder.SetOutputSchema(std::move(schema))
+//        .SetScanPredicate(nullptr)
+//        .SetTableOid(ps_table_oid)
+//                       .SetColumnOids(ps_col_oids)
+//        .Build();
+//  }
+//  std::unique_ptr<planner::AbstractPlanNode> ps_seq_scan2;
+//  planner::OutputSchemaHelper ps_seq_scan_out2{&expr_maker, 1};
+//  {
+//    // Read all needed columns
+//    auto ps_suppkey =
+//        expr_maker.CVE(ps_schema.GetColumnInfo("ps_suppkey").oid, sql::TypeId::Integer);
+//    auto ps_partkey =
+//        expr_maker.CVE(ps_schema.GetColumnInfo("ps_partkey").oid, sql::TypeId::Integer);
+//    auto ps_supplycost =
+//        expr_maker.CVE(ps_schema.GetColumnInfo("ps_supplycost").oid, sql::TypeId::Float);
+//    auto ps_availqty =
+//        expr_maker.CVE(ps_schema.GetColumnInfo("ps_availqty").oid, sql::TypeId::Integer);
+//
+//    // Make the output schema
+//    ps_seq_scan_out2.AddOutput("ps_suppkey", ps_suppkey);
+//    ps_seq_scan_out2.AddOutput("ps_partkey", ps_partkey);
+//    ps_seq_scan_out2.AddOutput("ps_supplycost", ps_supplycost);
+//    ps_seq_scan_out2.AddOutput("ps_availqty", ps_availqty);
+//    auto schema = ps_seq_scan_out2.MakeSchema();
+//    // Build
+//    planner::SeqScanPlanNode::Builder builder;
+//    ps_seq_scan2 = builder.SetOutputSchema(std::move(schema))
+//        .SetScanPredicate(nullptr)
+//        .SetTableOid(ps_table->GetId())
+//        .Build();
+//  }
+//
+//  // Hash Join 1
+//  std::unique_ptr<planner::AbstractPlanNode> hash_join1_1;
+//  planner::OutputSchemaHelper hash_join_out1_1{&expr_maker, 0};
+//  {
+//    // Read left columns
+//    auto n_nationkey = n_seq_scan_out1.GetOutput("n_nationkey");
+//    // Read right columns
+//    auto s_suppkey = s_seq_scan_out1.GetOutput("s_suppkey");
+//    auto s_nationkey = s_seq_scan_out1.GetOutput("s_nationkey");
+//    // Make Schema
+//    hash_join_out1_1.AddOutput("s_suppkey", s_suppkey);
+//    auto schema = hash_join_out1_1.MakeSchema();
+//    // Make predicate
+//    auto predicate = expr_maker.CompareEq(n_nationkey, s_nationkey);
+//    // Build
+//    planner::HashJoinPlanNode::Builder builder;
+//    hash_join1_1 = builder.SetOutputSchema(std::move(schema))
+//        .AddChild(std::move(n_seq_scan1))
+//        .AddChild(std::move(s_seq_scan1))
+//        .SetJoinType(planner::LogicalJoinType::INNER)
+//        .SetJoinPredicate(predicate)
+//        .AddLeftHashKey(n_nationkey)
+//        .AddRightHashKey(s_nationkey)
+//        .Build();
+//  }
+//  std::unique_ptr<planner::AbstractPlanNode> hash_join1_2;
+//  planner::OutputSchemaHelper hash_join_out1_2{&expr_maker, 0};
+//  {
+//    // Read left columns
+//    auto n_nationkey = n_seq_scan_out2.GetOutput("n_nationkey");
+//    // Read right columns
+//    auto s_suppkey = s_seq_scan_out2.GetOutput("s_suppkey");
+//    auto s_nationkey = s_seq_scan_out2.GetOutput("s_nationkey");
+//    // Make Schema
+//    hash_join_out1_2.AddOutput("s_suppkey", s_suppkey);
+//    auto schema = hash_join_out1_2.MakeSchema();
+//    // Make predicate
+//    auto predicate = expr_maker.CompareEq(n_nationkey, s_nationkey);
+//    // Build
+//    planner::HashJoinPlanNode::Builder builder;
+//    hash_join1_2 = builder.SetOutputSchema(std::move(schema))
+//        .AddChild(std::move(n_seq_scan2))
+//        .AddChild(std::move(s_seq_scan2))
+//        .SetJoinType(planner::LogicalJoinType::INNER)
+//        .SetJoinPredicate(predicate)
+//        .AddLeftHashKey(n_nationkey)
+//        .AddRightHashKey(s_nationkey)
+//        .Build();
+//  }
+//
+//  // Hash Join 2
+//  std::unique_ptr<planner::AbstractPlanNode> hash_join2_1;
+//  planner::OutputSchemaHelper hash_join_out2_1{&expr_maker, 0};
+//  {
+//    // Read left columns
+//    auto s_suppkey = hash_join_out1_1.GetOutput("s_suppkey");
+//    // Read right columns
+//    auto ps_suppkey = ps_seq_scan_out1.GetOutput("ps_suppkey");
+//    // auto ps_partkey = ps_seq_scan_out1.GetOutput("ps_partkey");
+//    auto ps_supplycost = ps_seq_scan_out1.GetOutput("ps_supplycost");
+//    auto ps_availqty = ps_seq_scan_out1.GetOutput("ps_availqty");
+//    // Make Schema
+//    hash_join_out2_1.AddOutput("ps_supplycost", ps_supplycost);
+//    hash_join_out2_1.AddOutput("ps_availqty", ps_availqty);
+//    auto schema = hash_join_out2_1.MakeSchema();
+//    // Make predicate
+//    auto predicate = expr_maker.CompareEq(s_suppkey, ps_suppkey);
+//    // Build
+//    planner::HashJoinPlanNode::Builder builder;
+//    hash_join2_1 = builder.SetOutputSchema(std::move(schema))
+//        .AddChild(std::move(hash_join1_1))
+//        .AddChild(std::move(ps_seq_scan1))
+//        .SetJoinType(planner::LogicalJoinType::INNER)
+//        .SetJoinPredicate(predicate)
+//        .AddLeftHashKey(s_suppkey)
+//        .AddRightHashKey(ps_suppkey)
+//        .Build();
+//  }
+//  std::unique_ptr<planner::AbstractPlanNode> hash_join2_2;
+//  planner::OutputSchemaHelper hash_join_out2_2{&expr_maker, 0};
+//  {
+//    // Read left columns
+//    auto s_suppkey = hash_join_out1_2.GetOutput("s_suppkey");
+//    // Read right columns
+//    auto ps_suppkey = ps_seq_scan_out2.GetOutput("ps_suppkey");
+//    auto ps_partkey = ps_seq_scan_out2.GetOutput("ps_partkey");
+//    auto ps_supplycost = ps_seq_scan_out2.GetOutput("ps_supplycost");
+//    auto ps_availqty = ps_seq_scan_out2.GetOutput("ps_availqty");
+//    // Make Schema
+//    hash_join_out2_2.AddOutput("ps_supplycost", ps_supplycost);
+//    hash_join_out2_2.AddOutput("ps_availqty", ps_availqty);
+//    hash_join_out2_2.AddOutput("ps_partkey", ps_partkey);
+//    auto schema = hash_join_out2_2.MakeSchema();
+//    // Make predicate
+//    auto predicate = expr_maker.CompareEq(s_suppkey, ps_suppkey);
+//    // Build
+//    planner::HashJoinPlanNode::Builder builder;
+//    hash_join2_2 = builder.SetOutputSchema(std::move(schema))
+//        .AddChild(std::move(hash_join1_2))
+//        .AddChild(std::move(ps_seq_scan2))
+//        .SetJoinType(planner::LogicalJoinType::INNER)
+//        .SetJoinPredicate(predicate)
+//        .AddLeftHashKey(s_suppkey)
+//        .AddRightHashKey(ps_suppkey)
+//        .Build();
+//  }
+//
+//  // Aggregates
+//  // Make the aggregate
+//  std::unique_ptr<planner::AbstractPlanNode> agg1;
+//  planner::OutputSchemaHelper agg_out1{&expr_maker, 0};
+//  {
+//    // Read previous layer's output
+//    auto ps_supplycost = hash_join_out2_1.GetOutput("ps_supplycost");
+//    auto ps_availqty = hash_join_out2_1.GetOutput("ps_availqty");
+//    // Make the aggregate expressions
+//    auto value = expr_maker.OpMul(ps_supplycost, ps_availqty);
+//    auto value_sum = expr_maker.AggSum(value);
+//    // Add them to the helper.
+//    agg_out1.AddAggTerm("value_sum", value_sum);
+//    // Make the output schema
+//    agg_out1.AddOutput("value_sum", agg_out1.GetAggTermForOutput("value_sum"));
+//    auto schema = agg_out1.MakeSchema();
+//    // Build
+//    planner::AggregatePlanNode::Builder builder;
+//    agg1 = builder.SetOutputSchema(std::move(schema))
+//        .AddAggregateTerm(value_sum)
+//        .AddChild(std::move(hash_join2_1))
+//        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+//        .SetHavingClausePredicate(nullptr)
+//        .Build();
+//  }
+//  std::unique_ptr<planner::AbstractPlanNode> agg2;
+//  planner::OutputSchemaHelper agg_out2{&expr_maker, 1};
+//  {
+//    // Read previous layer's output
+//    auto ps_supplycost = hash_join_out2_2.GetOutput("ps_supplycost");
+//    auto ps_availqty = hash_join_out2_2.GetOutput("ps_availqty");
+//    auto ps_partkey = hash_join_out2_2.GetOutput("ps_partkey");
+//    // Make the aggregate expressions
+//    auto value = expr_maker.OpMul(ps_supplycost, ps_availqty);
+//    auto value_sum = expr_maker.AggSum(value);
+//    // Add them to the helper.
+//    agg_out2.AddGroupByTerm("ps_partkey", ps_partkey);
+//    agg_out2.AddAggTerm("value_sum", value_sum);
+//    // Make the output schema
+//    agg_out2.AddOutput("ps_partkey", agg_out2.GetGroupByTermForOutput("ps_partkey"));
+//    agg_out2.AddOutput("value_sum", agg_out2.GetAggTermForOutput("value_sum"));
+//    auto schema = agg_out2.MakeSchema();
+//    // Build
+//    planner::AggregatePlanNode::Builder builder;
+//    agg2 = builder.SetOutputSchema(std::move(schema))
+//        .AddGroupByTerm(ps_partkey)
+//        .AddAggregateTerm(value_sum)
+//        .AddChild(std::move(hash_join2_2))
+//        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+//        .SetHavingClausePredicate(nullptr)
+//        .Build();
+//  }
+//
+//  // BNL
+//  std::unique_ptr<planner::AbstractPlanNode> bnl;
+//  planner::OutputSchemaHelper bnl_out{&expr_maker, 0};
+//  {
+//    // Left
+//    auto value_sum1 = agg_out1.GetOutput("value_sum");
+//    // Right
+//    auto ps_partkey = agg_out2.GetOutput("ps_partkey");
+//    auto value_sum2 = agg_out2.GetOutput("value_sum");
+//    // Make the output schema
+//    bnl_out.AddOutput("value_sum", value_sum2);
+//    bnl_out.AddOutput("ps_partkey", ps_partkey);
+//    auto schema = bnl_out.MakeSchema();
+//    // Predicate
+//    auto left_comp = expr_maker.OpMul(value_sum1, expr_maker.Constant(0.00001f));
+//    auto predicate = expr_maker.CompareGt(value_sum2, left_comp);
+//    // Build
+//    planner::NestedLoopJoinPlanNode::Builder builder;
+//    bnl = builder.AddChild(std::move(agg1))
+//        .AddChild(std::move(agg2))
+//        .SetOutputSchema(std::move(schema))
+//        .SetJoinType(planner::LogicalJoinType::INNER)
+//        .SetJoinPredicate(predicate)
+//        .Build();
+//  }
+//
+//  // Sort
+//  // Order By
+//  std::unique_ptr<planner::AbstractPlanNode> order_by;
+//  planner::OutputSchemaHelper order_by_out{&expr_maker, 0};
+//  {
+//    // Read previous layer
+//    auto ps_partkey = bnl_out.GetOutput("ps_partkey");
+//    auto value_sum = bnl_out.GetOutput("value_sum");
+//
+//    order_by_out.AddOutput("ps_partkey", ps_partkey);
+//    order_by_out.AddOutput("value_sum", value_sum);
+//    auto schema = order_by_out.MakeSchema();
+//    // Order By Clause
+//    planner::SortKey clause1{value_sum, planner::OrderByOrderingType::DESC};
+//    // Build
+//    planner::OrderByPlanNode::Builder builder;
+//    order_by = builder.SetOutputSchema(std::move(schema))
+//        .AddChild(std::move(bnl))
+//        .AddSortKey(clause1.first, clause1.second)
+//        .Build();
+//  }
+//
+//  // Compile plan
+//  auto last_op = order_by.get();
+//  NoOpResultConsumer consumer;
+//  sql::MemoryPool memory(nullptr);
+//  sql::ExecutionContext exec_ctx(&memory, last_op->GetOutputSchema(), &consumer);
+//  auto query = CompilationContext::Compile(*last_op);
+//  // Run Once to force compilation
+//  query->Run(&exec_ctx, vm::ExecutionMode::Compiled);
+//
+//  // Only time execution
+//  for (auto _ : state) {
+//    query->Run(&exec_ctx, vm::ExecutionMode::Compiled);
+//  }
+//}
 
 
 BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);

@@ -128,6 +128,9 @@ std::string ExpressionTypeToString(ExpressionType type, bool short_str) {
     case ExpressionType::FUNCTION: {
       return "FUNCTION";
     }
+    case ExpressionType::BUILTIN_FUNCTION: {
+      return "BUILTIN_FUNCTION";
+    }
     case ExpressionType::HASH_RANGE: {
       return "HASH_RANGE";
     }
