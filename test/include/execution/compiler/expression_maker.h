@@ -7,7 +7,7 @@
 #include "execution/sql/value.h"
 #include "parser/expression/abstract_expression.h"
 #include "parser/expression/aggregate_expression.h"
-#include "parser/expression/builtin_function_expression.h"
+#include "parser/expression/function_expression.h"
 #include "parser/expression/column_value_expression.h"
 #include "parser/expression/comparison_expression.h"
 #include "parser/expression/conjunction_expression.h"
@@ -74,13 +74,11 @@ class ExpressionMaker {
   /**
  * Create an expression for a builtin call.
  */
-  ManagedExpression BuiltinFunction(ast::Builtin builtin, ManagedExpression args,
-                             const type::TypeId return_value_type) {
+  ManagedExpression Function(std::string &&func_name,  ManagedExpression args, const type::TypeId return_value_type) {
 
     std::vector<execution::compiler::test::ExpressionMaker::OwnedExpression> children;
     children.emplace_back(args->Copy());
-    return MakeManaged(std::make_unique<parser::BuiltinFunctionExpression>(builtin, std::move(children),
-                                                                      return_value_type));
+    return MakeManaged(std::make_unique<parser::FunctionExpression>(std::string{func_name}, return_value_type, std::move(children)));
   }
 
   /**

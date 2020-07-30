@@ -1125,7 +1125,7 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     l_seq_scan_out.AddOutput("l_suppkey", l_suppkey);
 
     // TODO(Amadou): Add a BuiltinFunctionExpression for @extractYear.
-    auto extract_year = expr_maker.BuiltinFunction(execution::ast::Builtin::ExtractYear, l_shipdate,
+    auto extract_year = expr_maker.Function("ExtractYear", l_shipdate,
                                                    type::TypeId::INTEGER);
     l_seq_scan_out.AddOutput("l_year", extract_year);
     auto schema = l_seq_scan_out.MakeSchema();
@@ -1201,6 +1201,7 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     s_seq_scan = builder.SetOutputSchema(std::move(schema))
         .SetScanPredicate(nullptr)
         .SetTableOid(s_table_oid)
+                     .SetColumnOids(std::move(s_col_oids))
         .Build();
   }
 
