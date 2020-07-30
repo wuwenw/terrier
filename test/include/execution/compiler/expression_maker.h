@@ -74,9 +74,12 @@ class ExpressionMaker {
   /**
  * Create an expression for a builtin call.
  */
-  ManagedExpression BuiltinFunction(ast::Builtin builtin, std::vector<std::unique_ptr<parser::AbstractExpression>> args,
+  ManagedExpression BuiltinFunction(ast::Builtin builtin, ManagedExpression args,
                              const type::TypeId return_value_type) {
-    return MakeManaged(std::make_unique<parser::BuiltinFunctionExpression>(builtin, std::move(args),
+
+    std::vector<execution::compiler::test::ExpressionMaker::OwnedExpression> children;
+    children.emplace_back(args->Copy());
+    return MakeManaged(std::make_unique<parser::BuiltinFunctionExpression>(builtin, std::move(children),
                                                                       return_value_type));
   }
 

@@ -230,16 +230,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
   auto last_op = order_by.get();
   execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
 
-  auto exec_ctx = execution::exec::ExecutionContext(
+  auto exec_ctx_q1 = execution::exec::ExecutionContext(
       db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
       common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
 
   auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
   // Run Once to force compilation
-  query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  query->Run(common::ManagedPointer(&exec_ctx_q1), execution::vm::ExecutionMode::Interpret);
   // Only time execution
   for (auto _ : state) {
-    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+    query->Run(common::ManagedPointer(&exec_ctx_q1), execution::vm::ExecutionMode::Interpret);
   }
 }
 
@@ -383,16 +383,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
   // Compile plan
   auto last_op = order_by.get();
   execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
-  auto exec_ctx = execution::exec::ExecutionContext(
+  auto exec_ctx_q4 = execution::exec::ExecutionContext(
       db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
       common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
 
   auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
   // Run Once to force compilation
-  query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  query->Run(common::ManagedPointer(&exec_ctx_q4), execution::vm::ExecutionMode::Interpret);
   // Only time execution
   for (auto _ : state) {
-    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+    query->Run(common::ManagedPointer(&exec_ctx_q4), execution::vm::ExecutionMode::Interpret);
   }
 }
 
@@ -777,16 +777,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
   auto last_op = order_by.get();
   execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
 
-  auto exec_ctx = execution::exec::ExecutionContext(
+  auto exec_ctx_q5 = execution::exec::ExecutionContext(
       db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
       common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
 
   auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
   // Run Once to force compilation
-  query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  query->Run(common::ManagedPointer(&exec_ctx_q5), execution::vm::ExecutionMode::Interpret);
   // Only time execution
   for (auto _ : state) {
-    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+    query->Run(common::ManagedPointer(&exec_ctx_q5), execution::vm::ExecutionMode::Interpret);
   }
 }
 
@@ -863,16 +863,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q6)(benchmark::State &state) {
   auto last_op = agg.get();
   execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
 
-  auto exec_ctx = execution::exec::ExecutionContext(
+  auto exec_ctx_q6 = execution::exec::ExecutionContext(
       db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
       common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
 
   auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
   // Run Once to force compilation
-  query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  query->Run(common::ManagedPointer(&exec_ctx_q6), execution::vm::ExecutionMode::Interpret);
   // Only time execution
   for (auto _ : state) {
-    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+    query->Run(common::ManagedPointer(&exec_ctx_q6), execution::vm::ExecutionMode::Interpret);
   }
 }
 
@@ -1119,10 +1119,8 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     l_seq_scan_out.AddOutput("l_orderkey", l_orderkey);
     l_seq_scan_out.AddOutput("l_suppkey", l_suppkey);
 
-    std::vector<execution::compiler::test::ExpressionMaker::OwnedExpression> children;
-    children.emplace_back(l_shipdate->Copy());
     // TODO(Amadou): Add a BuiltinFunctionExpression for @extractYear.
-    auto extract_year = expr_maker.BuiltinFunction(execution::ast::Builtin::ExtractYear, std::move(children),
+    auto extract_year = expr_maker.BuiltinFunction(execution::ast::Builtin::ExtractYear, l_shipdate,
                                                    type::TypeId::INTEGER);
     l_seq_scan_out.AddOutput("l_year", extract_year);
     auto schema = l_seq_scan_out.MakeSchema();
@@ -1307,16 +1305,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Compile plan
     auto last_op = order_by.get();
     execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
-    auto exec_ctx = execution::exec::ExecutionContext(
+    auto exec_ctx_q7 = execution::exec::ExecutionContext(
         db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
         common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
 
     auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
     // Run Once to force compilation
-    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+    query->Run(common::ManagedPointer(&exec_ctx_q7), execution::vm::ExecutionMode::Interpret);
     // Only time execution
     for (auto _ : state) {
-      query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+      query->Run(common::ManagedPointer(&exec_ctx_q7), execution::vm::ExecutionMode::Interpret);
     }
 }
 
@@ -1325,5 +1323,5 @@ BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTi
 BENCHMARK_REGISTER_F(TPCHRunner, Q4)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 BENCHMARK_REGISTER_F(TPCHRunner, Q5)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 BENCHMARK_REGISTER_F(TPCHRunner, Q6)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-  BENCHMARK_REGISTER_F(TPCHRunner, Q7)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+BENCHMARK_REGISTER_F(TPCHRunner, Q7)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 }  // namespace terrier::runner
