@@ -22,7 +22,7 @@ class BuiltinFunctionExpression : public terrier::parser::AbstractExpression {
   explicit BuiltinFunctionExpression(terrier::execution::ast::Builtin builtin,
                                      std::vector<std::unique_ptr<AbstractExpression>> &&children,
                                      const terrier::type::TypeId return_value_type)
-      : AbstractExpression(terrier::parser::ExpressionType::BUILTIN_FUNCTION, return_value_type,
+      : AbstractExpression(terrier::parser::ExpressionType::FUNCTION, return_value_type,
                            std::move(children)),
         builtin_(builtin) {}
 

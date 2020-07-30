@@ -1715,9 +1715,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
 //}
 
 
-BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
-BENCHMARK_REGISTER_F(TPCHRunner, Q4)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
-BENCHMARK_REGISTER_F(TPCHRunner, Q5)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
-BENCHMARK_REGISTER_F(TPCHRunner, Q6)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q4)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q5)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q6)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
 BENCHMARK_REGISTER_F(TPCHRunner, Q7)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(1);
 }  // namespace terrier::runner
