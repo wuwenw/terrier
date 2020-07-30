@@ -1,6 +1,7 @@
 #include "binder/sql_node_visitor.h"
 
 #include "parser/expression/aggregate_expression.h"
+#include "parser/expression/builtin_function_expression.h"
 #include "parser/expression/case_expression.h"
 #include "parser/expression/column_value_expression.h"
 #include "parser/expression/comparison_expression.h"
@@ -56,6 +57,10 @@ void binder::SqlNodeVisitor::Visit(common::ManagedPointer<parser::SubqueryExpres
   expr->AcceptChildren(common::ManagedPointer(this));
 }
 void binder::SqlNodeVisitor::Visit(common::ManagedPointer<parser::TypeCastExpression> expr) {
+  expr->AcceptChildren(common::ManagedPointer(this));
+}
+
+void binder::SqlNodeVisitor::Visit(common::ManagedPointer<parser::BuiltinFunctionExpression> expr) {
   expr->AcceptChildren(common::ManagedPointer(this));
 }
 

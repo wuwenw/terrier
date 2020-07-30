@@ -7,6 +7,7 @@
 #include "execution/sql/value.h"
 #include "parser/expression/abstract_expression.h"
 #include "parser/expression/aggregate_expression.h"
+#include "parser/expression/builtin_function_expression.h"
 #include "parser/expression/column_value_expression.h"
 #include "parser/expression/comparison_expression.h"
 #include "parser/expression/conjunction_expression.h"
@@ -55,11 +56,28 @@ class ExpressionMaker {
   }
 
   /**
+ * Create a string constant expression
+ */
+  ManagedExpression Constant(const std::string &str) {
+    return MakeManaged(
+        std::make_unique<parser::ConstantValueExpression>(type::TypeId::VARCHAR, execution::sql::StringVal(str.c_str(), str.length())));
+  }
+
+  /**
    * Create a date constant expression
    */
   ManagedExpression Constant(int32_t year, uint32_t month, uint32_t day) {
     return MakeManaged(std::make_unique<parser::ConstantValueExpression>(
         type::TypeId::DATE, sql::DateVal(sql::Date::FromYMD(year, month, day))));
+  }
+
+  /**
+ * Create an expression for a builtin call.
+ */
+  ManagedExpression BuiltinFunction(ast::Builtin builtin, std::vector<std::unique_ptr<parser::AbstractExpression>> args,
+                             const type::TypeId return_value_type) {
+    return MakeManaged(std::make_unique<parser::BuiltinFunctionExpression>(builtin, std::move(args),
+                                                                      return_value_type));
   }
 
   /**

@@ -29,6 +29,7 @@ class OrderByDescription;
 class LimitDescription;
 
 class AggregateExpression;
+class BuiltinFunctionExpression;
 class CaseExpression;
 class ColumnValueExpression;
 class ComparisonExpression;
@@ -255,6 +256,12 @@ class SqlNodeVisitor {
    * @param node node to be visited
    */
   virtual void Visit(common::ManagedPointer<parser::TableRef> node) {}
+
+    /**
+   * Visitor pattern for BuiltinFunctionExpression.
+   * @param node node to be visited
+   */
+    void Visit(common::ManagedPointer<parser::BuiltinFunctionExpression> expr);
 
   // END some sub query nodes inside SelectStatement
 };

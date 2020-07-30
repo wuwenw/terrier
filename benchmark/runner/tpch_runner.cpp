@@ -1,6 +1,6 @@
 
 
-#include <loggers/execution_logger.h>
+#include "loggers/execution_logger.h"
 
 #include "benchmark/benchmark.h"
 #include "common/scoped_timer.h"
@@ -14,10 +14,14 @@
 #include "execution/vm/module.h"
 #include "main/db_main.h"
 #include "planner/plannodes/aggregate_plan_node.h"
+#include "planner/plannodes/hash_join_plan_node.h"
 #include "planner/plannodes/order_by_plan_node.h"
 #include "planner/plannodes/seq_scan_plan_node.h"
+#include "planner/plannodes/nested_loop_join_plan_node.h"
 #include "storage/sql_table.h"
 #include "test_util/tpch/workload.h"
+
+
 namespace terrier::runner {
 class TPCHRunner : public benchmark::Fixture {
  public:
@@ -81,7 +85,6 @@ class TPCHRunner : public benchmark::Fixture {
 BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
   execution::compiler::test::ExpressionMaker expr_maker;
   auto table_oid = accessor_->GetTableOid("lineitem");
-
   const auto &l_schema = accessor_->GetSchema(table_oid);
   // Scan the table
   std::unique_ptr<planner::AbstractPlanNode> l_seq_scan;
@@ -95,6 +98,11 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
     auto l_tax = expr_maker.CVE(l_schema.GetColumn("l_tax").Oid(), type::TypeId::DECIMAL);
     auto l_quantity = expr_maker.CVE(l_schema.GetColumn("l_quantity").Oid(), type::TypeId::DECIMAL);
     auto l_shipdate = expr_maker.CVE(l_schema.GetColumn("l_shipdate").Oid(), type::TypeId::DATE);
+    std::vector<catalog::col_oid_t> col_oids = {
+        l_schema.GetColumn("l_returnflag").Oid(),    l_schema.GetColumn("l_linestatus").Oid(),
+        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(),
+        l_schema.GetColumn("l_tax").Oid(),           l_schema.GetColumn("l_quantity").Oid(),
+        l_schema.GetColumn("l_shipdate").Oid()};
     // Make the output schema
     l_seq_scan_out.AddOutput("l_returnflag", l_returnflag);
     l_seq_scan_out.AddOutput("l_linestatus", l_linestatus);
@@ -107,11 +115,6 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
     l_seq_scan_out.AddOutput("l_shipdate", l_shipdate);
     auto date_const = expr_maker.Constant(1998, 9, 2);
     auto predicate = expr_maker.ComparisonLt(l_shipdate, date_const);
-    std::vector<catalog::col_oid_t> col_oids = {
-        l_schema.GetColumn("l_returnflag").Oid(),    l_schema.GetColumn("l_linestatus").Oid(),
-        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(),
-        l_schema.GetColumn("l_tax").Oid(),           l_schema.GetColumn("l_quantity").Oid(),
-        l_schema.GetColumn("l_shipdate").Oid()};
     // Build
     planner::SeqScanPlanNode::Builder builder;
     l_seq_scan = builder.SetOutputSchema(std::move(schema))
@@ -240,6 +243,1087 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
   }
 }
 
-BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 
+BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
+  execution::compiler::test::ExpressionMaker expr_maker;
+  // Orders.
+  auto o_table_oid = accessor_->GetTableOid("orders");
+  const auto &o_schema = accessor_->GetSchema(o_table_oid);
+  // Lineitem.
+  auto l_table_oid = accessor_->GetTableOid("lineitem");
+  const auto &l_schema = accessor_->GetSchema(l_table_oid);
+
+  // Scan orders
+  std::unique_ptr<planner::AbstractPlanNode> o_seq_scan;
+  execution::compiler::test::OutputSchemaHelper o_seq_scan_out{0, &expr_maker};
+  {
+    // Read all needed columns
+    auto o_orderkey =
+        expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
+    auto o_orderpriority =
+        expr_maker.CVE(o_schema.GetColumn("o_orderpriority").Oid(), type::TypeId::VARCHAR);
+    auto o_orderdate = expr_maker.CVE(o_schema.GetColumn("o_orderdate").Oid(), type::TypeId::DATE);
+    std::vector<catalog::col_oid_t> col_oids = {
+        o_schema.GetColumn("o_orderkey").Oid(), o_schema.GetColumn("o_orderpriority").Oid(), o_schema.GetColumn("o_orderdate").Oid()
+    };
+    // Make the output schema
+    o_seq_scan_out.AddOutput("o_orderkey", o_orderkey);
+    o_seq_scan_out.AddOutput("o_orderpriority", o_orderpriority);
+    auto schema = o_seq_scan_out.MakeSchema();
+    // Make predicate
+    auto lo_date = expr_maker.Constant(1993, 7, 1);
+    auto hi_date = expr_maker.Constant(1993, 10, 1);
+    auto lo_comp = expr_maker.ComparisonGe(o_orderdate, lo_date);
+    auto hi_comp = expr_maker.ComparisonLt(o_orderdate, hi_date);
+    auto predicate = expr_maker.ConjunctionAnd(lo_comp, hi_comp);
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    o_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(predicate)
+        .SetTableOid(o_table_oid)
+        .SetColumnOids(std::move(col_oids))
+        .Build();
+  }
+  // Scan lineitem
+  std::unique_ptr<planner::AbstractPlanNode> l_seq_scan;
+  execution::compiler::test::OutputSchemaHelper l_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto l_orderkey =
+        expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
+    auto l_commitdate =
+        expr_maker.CVE(l_schema.GetColumn("l_commitdate").Oid(), type::TypeId::DATE);
+    auto l_receiptdate =
+        expr_maker.CVE(l_schema.GetColumn("l_receiptdate").Oid(), type::TypeId::DATE);
+    std::vector<catalog::col_oid_t> col_oids = {
+        l_schema.GetColumn("l_orderkey").Oid(), l_schema.GetColumn("l_commitdate").Oid(), l_schema.GetColumn("l_receiptdate").Oid()
+    };
+    // Make the output schema
+    l_seq_scan_out.AddOutput("l_orderkey", l_orderkey);
+    auto schema = l_seq_scan_out.MakeSchema();
+    auto predicate = expr_maker.ComparisonLt(l_commitdate, l_receiptdate);
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    l_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(predicate)
+        .SetTableOid(l_table_oid)
+        .SetColumnOids(std::move(col_oids))
+        .Build();
+  }
+  // Semi Join
+  std::unique_ptr<planner::AbstractPlanNode> semi_join;
+  execution::compiler::test::OutputSchemaHelper semi_join_out{0, &expr_maker};
+  {
+    // Read all needed columns
+    // Left
+    auto o_orderkey = o_seq_scan_out.GetOutput("o_orderkey");
+    auto o_orderpriority = o_seq_scan_out.GetOutput("o_orderpriority");
+    // Right
+    auto l_orderkey = l_seq_scan_out.GetOutput("l_orderkey");
+    // Make output schema
+    semi_join_out.AddOutput("o_orderpriority", o_orderpriority);
+    auto schema = semi_join_out.MakeSchema();
+    auto predicate = expr_maker.ComparisonEq(o_orderkey, l_orderkey);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    semi_join = builder.SetOutputSchema(std::move(schema))
+        .SetJoinPredicate(predicate)
+        .AddChild(std::move(o_seq_scan))
+        .AddChild(std::move(l_seq_scan))
+        .AddLeftHashKey(o_orderkey)
+        .AddRightHashKey(l_orderkey)
+        .SetJoinType(planner::LogicalJoinType::LEFT_SEMI)
+        .Build();
+  }
+  // Make the aggregate
+  std::unique_ptr<planner::AbstractPlanNode> agg;
+  execution::compiler::test::OutputSchemaHelper agg_out{0, &expr_maker};
+  {
+    // Read previous layer's output
+    auto o_orderpriority = semi_join_out.GetOutput("o_orderpriority");
+    // Make the aggregate expressions
+    auto one_const = expr_maker.Constant(1);
+    auto order_count = expr_maker.AggCount(one_const);
+    // Add them to the helper.
+    agg_out.AddGroupByTerm("o_orderpriority", o_orderpriority);
+    agg_out.AddAggTerm("order_count", order_count);
+    // Make the output schema
+    agg_out.AddOutput("o_orderpriority", agg_out.GetGroupByTermForOutput("o_orderpriority"));
+    agg_out.AddOutput("order_count", agg_out.GetAggTermForOutput("order_count"));
+    auto schema = agg_out.MakeSchema();
+    // Build
+    planner::AggregatePlanNode::Builder builder;
+    agg = builder.SetOutputSchema(std::move(schema))
+        .AddGroupByTerm(o_orderpriority)
+        .AddAggregateTerm(order_count)
+        .AddChild(std::move(semi_join))
+        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+        .SetHavingClausePredicate(nullptr)
+        .Build();
+  }
+  // Order By
+  std::unique_ptr<planner::AbstractPlanNode> order_by;
+  execution::compiler::test::OutputSchemaHelper order_by_out{0, &expr_maker};
+  {
+    auto o_orderpriority = agg_out.GetOutput("o_orderpriority");
+    auto order_count = agg_out.GetOutput("order_count");
+    order_by_out.AddOutput("o_orderpriority", o_orderpriority);
+    order_by_out.AddOutput("order_count", order_count);
+    auto schema = order_by_out.MakeSchema();
+    // Order By Clause
+    planner::SortKey clause{o_orderpriority, optimizer::OrderByOrderingType::ASC};
+    // Build
+    planner::OrderByPlanNode::Builder builder;
+    order_by = builder.SetOutputSchema(std::move(schema))
+        .AddChild(std::move(agg))
+        .AddSortKey(clause.first, clause.second)
+        .Build();
+  }
+
+  // Compile plan
+  auto last_op = order_by.get();
+  execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
+  auto exec_ctx = execution::exec::ExecutionContext(
+      db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
+      common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
+
+  auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
+  // Run Once to force compilation
+  query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  // Only time execution
+  for (auto _ : state) {
+    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  }
+}
+
+
+BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
+  execution::compiler::test::ExpressionMaker expr_maker;
+  // Region.
+  auto r_table_oid = accessor_->GetTableOid("region");
+  const auto &r_schema = accessor_->GetSchema(r_table_oid);
+  // Nation.
+  auto n_table_oid = accessor_->GetTableOid("nation");
+  const auto &n_schema = accessor_->GetSchema(n_table_oid);
+  // Customer.
+  auto c_table_oid = accessor_->GetTableOid("customer");
+  const auto &c_schema = accessor_->GetSchema(c_table_oid);
+  // Orders.
+  auto o_table_oid = accessor_->GetTableOid("orders");
+  const auto &o_schema = accessor_->GetSchema(o_table_oid);
+  // Lineitem.
+  auto l_table_oid = accessor_->GetTableOid("lineitem");
+  const auto &l_schema = accessor_->GetSchema(l_table_oid);
+  // Supplier.
+  auto s_table_oid = accessor_->GetTableOid("supplier");
+  const auto &s_schema = accessor_->GetSchema(s_table_oid);
+  // Scan region
+  std::unique_ptr<planner::AbstractPlanNode> r_seq_scan;
+  execution::compiler::test::OutputSchemaHelper r_seq_scan_out{0, &expr_maker};
+  {
+    // Read all needed columns
+    auto r_name = expr_maker.CVE(r_schema.GetColumn("r_name").Oid(), type::TypeId::VARCHAR);
+    auto r_regionkey =
+        expr_maker.CVE(r_schema.GetColumn("r_regionkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> r_col_oids = {
+        r_schema.GetColumn("r_name").Oid(), r_schema.GetColumn("r_regionkey").Oid()
+    };
+    // Make the output schema
+    r_seq_scan_out.AddOutput("r_regionkey", r_regionkey);
+    auto schema = r_seq_scan_out.MakeSchema();
+    // Make the predicate
+    auto asia = expr_maker.Constant("ASIA");
+    auto predicate = expr_maker.ComparisonEq(r_name, asia);
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    r_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(predicate)
+        .SetTableOid(r_table_oid)
+                     .SetColumnOids(std::move(r_col_oids))
+        .Build();
+  }
+  // Scan nation
+  std::unique_ptr<planner::AbstractPlanNode> n_seq_scan;
+  execution::compiler::test::OutputSchemaHelper n_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto n_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
+    auto n_nationkey =
+        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+    auto n_regionkey =
+        expr_maker.CVE(n_schema.GetColumn("n_regionkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> n_col_oids = {
+        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid(), n_schema.GetColumn("n_regionkey").Oid()
+    };
+    // Make the output schema
+    n_seq_scan_out.AddOutput("n_name", n_name);
+    n_seq_scan_out.AddOutput("n_nationkey", n_nationkey);
+    n_seq_scan_out.AddOutput("n_regionkey", n_regionkey);
+    auto schema = n_seq_scan_out.MakeSchema();
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    n_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(nullptr)
+        .SetTableOid(n_table_oid)
+                     .SetColumnOids(std::move(n_col_oids))
+        .Build();
+  }
+  // Scan customer
+  std::unique_ptr<planner::AbstractPlanNode> c_seq_scan;
+  execution::compiler::test::OutputSchemaHelper c_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto c_custkey = expr_maker.CVE(c_schema.GetColumn("c_custkey").Oid(), type::TypeId::INTEGER);
+    auto c_nationkey =
+        expr_maker.CVE(c_schema.GetColumn("c_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> c_col_oids = {
+        c_schema.GetColumn("c_custkey").Oid(), c_schema.GetColumn("c_nationkey").Oid()
+    };
+    // Make the output schema
+    c_seq_scan_out.AddOutput("c_custkey", c_custkey);
+    c_seq_scan_out.AddOutput("c_nationkey", c_nationkey);
+    auto schema = c_seq_scan_out.MakeSchema();
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    c_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(nullptr)
+        .SetTableOid(c_table_oid)
+                     .SetColumnOids(std::move(c_col_oids))
+        .Build();
+  }
+  // Scan orders
+  std::unique_ptr<planner::AbstractPlanNode> o_seq_scan;
+  execution::compiler::test::OutputSchemaHelper o_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto o_orderkey =
+        expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
+    auto o_custkey = expr_maker.CVE(o_schema.GetColumn("o_custkey").Oid(), type::TypeId::INTEGER);
+    auto o_orderdate = expr_maker.CVE(o_schema.GetColumn("o_orderdate").Oid(), type::TypeId::DATE);
+    std::vector<catalog::col_oid_t> o_col_oids = {
+        o_schema.GetColumn("o_orderkey").Oid(), o_schema.GetColumn("o_custkey").Oid(), o_schema.GetColumn("o_orderdate").Oid()
+    };
+    // Make the output schema
+    o_seq_scan_out.AddOutput("o_orderkey", o_orderkey);
+    o_seq_scan_out.AddOutput("o_custkey", o_custkey);
+    auto schema = o_seq_scan_out.MakeSchema();
+    // Make predicate
+    auto lo_date = expr_maker.Constant(1994, 1, 1);
+    auto hi_date = expr_maker.Constant(1995, 1, 1);
+    auto lo_comp = expr_maker.ComparisonGe(o_orderdate, lo_date);
+    auto hi_comp = expr_maker.ComparisonLe(o_orderdate, hi_date);
+    auto predicate = expr_maker.ConjunctionAnd(lo_comp, hi_comp);
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    o_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(predicate)
+        .SetTableOid(o_table_oid)
+                     .SetColumnOids(std::move(o_col_oids))
+        .Build();
+  }
+  // Scan lineitem
+  std::unique_ptr<planner::AbstractPlanNode> l_seq_scan;
+  execution::compiler::test::OutputSchemaHelper l_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto l_extendedprice =
+        expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
+    auto l_discount = expr_maker.CVE(l_schema.GetColumn("l_discount").Oid(), type::TypeId::DECIMAL);
+    auto l_orderkey =
+        expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
+    auto l_suppkey = expr_maker.CVE(l_schema.GetColumn("l_suppkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> l_col_oids = {
+        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(), l_schema.GetColumn("l_orderkey").Oid(), l_schema.GetColumn("l_suppkey").Oid()
+    };
+    // Make the output schema
+    l_seq_scan_out.AddOutput("l_extendedprice", l_extendedprice);
+    l_seq_scan_out.AddOutput("l_discount", l_discount);
+    l_seq_scan_out.AddOutput("l_orderkey", l_orderkey);
+    l_seq_scan_out.AddOutput("l_suppkey", l_suppkey);
+    auto schema = l_seq_scan_out.MakeSchema();
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    l_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(nullptr)
+        .SetTableOid(l_table_oid)
+                     .SetColumnOids(std::move(l_col_oids))
+        .Build();
+  }
+  // Scan supplier
+  std::unique_ptr<planner::AbstractPlanNode> s_seq_scan;
+  execution::compiler::test::OutputSchemaHelper s_seq_scan_out{0, &expr_maker};
+  {
+    // Read all needed columns
+    auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
+    auto s_nationkey =
+        expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> s_col_oids = {
+        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_nationkey").Oid()
+    };
+    // Make the output schema
+    s_seq_scan_out.AddOutput("s_suppkey", s_suppkey);
+    s_seq_scan_out.AddOutput("s_nationkey", s_nationkey);
+    auto schema = s_seq_scan_out.MakeSchema();
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    s_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(nullptr)
+        .SetTableOid(s_table_oid)
+                     .SetColumnOids(std::move(s_col_oids))
+        .Build();
+  }
+  // Make first hash join
+  std::unique_ptr<planner::AbstractPlanNode> hash_join1;
+  execution::compiler::test::OutputSchemaHelper hash_join_out1{0, &expr_maker};
+  {
+    // Left columns
+    auto r_regionkey = r_seq_scan_out.GetOutput("r_regionkey");
+    // Right columns
+    auto n_name = n_seq_scan_out.GetOutput("n_name");
+    auto n_nationkey = n_seq_scan_out.GetOutput("n_nationkey");
+    auto n_regionkey = n_seq_scan_out.GetOutput("n_regionkey");
+    // Output Schema
+    hash_join_out1.AddOutput("n_nationkey", n_nationkey);
+    hash_join_out1.AddOutput("n_name", n_name);
+    auto schema = hash_join_out1.MakeSchema();
+    // Predicate
+    auto predicate = expr_maker.ComparisonEq(r_regionkey, n_regionkey);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join1 = builder.AddChild(std::move(r_seq_scan))
+        .AddChild(std::move(n_seq_scan))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(r_regionkey)
+        .AddRightHashKey(n_regionkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+  // Make second hash join
+  std::unique_ptr<planner::AbstractPlanNode> hash_join2;
+  execution::compiler::test::OutputSchemaHelper hash_join_out2{0, &expr_maker};
+  {
+    // Left columns
+    auto n_nationkey = hash_join_out1.GetOutput("n_nationkey");
+    auto n_name = hash_join_out1.GetOutput("n_name");
+    // Right columns
+    auto c_custkey = c_seq_scan_out.GetOutput("c_custkey");
+    auto c_nationkey = c_seq_scan_out.GetOutput("c_nationkey");
+    // Output Schema
+    hash_join_out2.AddOutput("n_nationkey", n_nationkey);
+    hash_join_out2.AddOutput("n_name", n_name);
+    hash_join_out2.AddOutput("c_custkey", c_custkey);
+    auto schema = hash_join_out2.MakeSchema();
+    // Predicate
+    auto predicate = expr_maker.ComparisonEq(n_nationkey, c_nationkey);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join2 = builder.AddChild(std::move(hash_join1))
+        .AddChild(std::move(c_seq_scan))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(n_nationkey)
+        .AddRightHashKey(c_nationkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+  // Make third hash join
+  std::unique_ptr<planner::AbstractPlanNode> hash_join3;
+  execution::compiler::test::OutputSchemaHelper hash_join_out3{0, &expr_maker};
+  {
+    // Left columns
+    auto n_nationkey = hash_join_out2.GetOutput("n_nationkey");
+    auto n_name = hash_join_out2.GetOutput("n_name");
+    auto c_custkey = hash_join_out2.GetOutput("c_custkey");
+    // Right columns
+    auto o_custkey = o_seq_scan_out.GetOutput("o_custkey");
+    auto o_orderkey = o_seq_scan_out.GetOutput("o_orderkey");
+    // Output Schema
+    hash_join_out3.AddOutput("n_nationkey", n_nationkey);
+    hash_join_out3.AddOutput("n_name", n_name);
+    hash_join_out3.AddOutput("o_orderkey", o_orderkey);
+    auto schema = hash_join_out3.MakeSchema();
+    // Predicate
+    auto predicate = expr_maker.ComparisonEq(c_custkey, o_custkey);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join3 = builder.AddChild(std::move(hash_join2))
+        .AddChild(std::move(o_seq_scan))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(c_custkey)
+        .AddRightHashKey(o_custkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+  // Make fourth hash join
+  std::unique_ptr<planner::AbstractPlanNode> hash_join4;
+  execution::compiler::test::OutputSchemaHelper hash_join_out4{1, &expr_maker};
+  {
+    // Left columns
+    auto n_nationkey = hash_join_out3.GetOutput("n_nationkey");
+    auto n_name = hash_join_out3.GetOutput("n_name");
+    auto o_orderkey = hash_join_out3.GetOutput("o_orderkey");
+    // Right columns
+    auto l_extendedprice = l_seq_scan_out.GetOutput("l_extendedprice");
+    auto l_discount = l_seq_scan_out.GetOutput("l_discount");
+    auto l_orderkey = l_seq_scan_out.GetOutput("l_orderkey");
+    auto l_suppkey = l_seq_scan_out.GetOutput("l_suppkey");
+    // Output Schema
+    hash_join_out4.AddOutput("l_extendedprice", l_extendedprice);
+    hash_join_out4.AddOutput("l_discount", l_discount);
+    hash_join_out4.AddOutput("l_suppkey", l_suppkey);
+    hash_join_out4.AddOutput("n_nationkey", n_nationkey);
+    hash_join_out4.AddOutput("n_name", n_name);
+    auto schema = hash_join_out4.MakeSchema();
+    // Predicate
+    auto predicate = expr_maker.ComparisonEq(o_orderkey, l_orderkey);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join4 = builder.AddChild(std::move(hash_join3))
+        .AddChild(std::move(l_seq_scan))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(o_orderkey)
+        .AddRightHashKey(l_orderkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+  // Make fifth hash join
+  std::unique_ptr<planner::AbstractPlanNode> hash_join5;
+  execution::compiler::test::OutputSchemaHelper hash_join_out5{0, &expr_maker};
+  {
+    // Left columns
+    auto s_suppkey = s_seq_scan_out.GetOutput("s_suppkey");
+    auto s_nationkey = s_seq_scan_out.GetOutput("s_nationkey");
+    // Right columns
+    auto n_name = hash_join_out4.GetOutput("n_name");
+    auto n_nationkey = hash_join_out4.GetOutput("n_nationkey");
+    auto l_extendedprice = hash_join_out4.GetOutput("l_extendedprice");
+    auto l_discount = hash_join_out4.GetOutput("l_discount");
+    auto l_suppkey = hash_join_out4.GetOutput("l_suppkey");
+    // Output Schema
+    hash_join_out5.AddOutput("l_extendedprice", l_extendedprice);
+    hash_join_out5.AddOutput("l_discount", l_discount);
+    hash_join_out5.AddOutput("n_name", n_name);
+    auto schema = hash_join_out5.MakeSchema();
+    // Predicate
+    auto comp1 = expr_maker.ComparisonEq(n_nationkey, s_nationkey);
+    auto comp2 = expr_maker.ComparisonEq(l_suppkey, s_suppkey);
+    auto predicate = expr_maker.ConjunctionAnd(comp1, comp2);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join5 = builder.AddChild(std::move(s_seq_scan))
+        .AddChild(std::move(hash_join4))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(s_nationkey)
+        .AddLeftHashKey(s_suppkey)
+        .AddRightHashKey(n_nationkey)
+        .AddRightHashKey(l_suppkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+  // Make the aggregate
+  std::unique_ptr<planner::AbstractPlanNode> agg;
+  execution::compiler::test::OutputSchemaHelper agg_out{0, &expr_maker};
+  {
+    // Read previous layer's output
+    auto l_extendedprice = hash_join_out5.GetOutput("l_extendedprice");
+    auto l_discount = hash_join_out5.GetOutput("l_discount");
+    auto n_name = hash_join_out5.GetOutput("n_name");
+    // Make the aggregate expressions
+    auto one_const = expr_maker.Constant(1.0f);
+    auto revenue = expr_maker.AggSum(
+        expr_maker.OpMul(l_extendedprice, expr_maker.OpMin(one_const, l_discount)));
+    // Add them to the helper.
+    agg_out.AddGroupByTerm("n_name", n_name);
+    agg_out.AddAggTerm("revenue", revenue);
+    // Make the output schema
+    agg_out.AddOutput("n_name", agg_out.GetGroupByTermForOutput("n_name"));
+    agg_out.AddOutput("revenue", agg_out.GetAggTermForOutput("revenue"));
+    auto schema = agg_out.MakeSchema();
+    // Build
+    planner::AggregatePlanNode::Builder builder;
+    agg = builder.SetOutputSchema(std::move(schema))
+        .AddGroupByTerm(n_name)
+        .AddAggregateTerm(revenue)
+        .AddChild(std::move(hash_join5))
+        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+        .SetHavingClausePredicate(nullptr)
+        .Build();
+  }
+  // Order By
+  std::unique_ptr<planner::AbstractPlanNode> order_by;
+  execution::compiler::test::OutputSchemaHelper order_by_out{0, &expr_maker};
+  {
+    // Output Colums col1, col2, col1 + col2
+    auto n_name = agg_out.GetOutput("n_name");
+    auto revenue = agg_out.GetOutput("revenue");
+    order_by_out.AddOutput("n_name", n_name);
+    order_by_out.AddOutput("revenue", revenue);
+    auto schema = order_by_out.MakeSchema();
+    // Order By Clause
+    planner::SortKey clause{revenue, optimizer::OrderByOrderingType::DESC};
+    // Build
+    planner::OrderByPlanNode::Builder builder;
+    order_by = builder.SetOutputSchema(std::move(schema))
+        .AddChild(std::move(agg))
+        .AddSortKey(clause.first, clause.second)
+        .Build();
+  }
+
+  // Compile plan
+  auto last_op = order_by.get();
+  execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
+
+  auto exec_ctx = execution::exec::ExecutionContext(
+      db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
+      common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
+
+  auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
+  // Run Once to force compilation
+  query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  // Only time execution
+  for (auto _ : state) {
+    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  }
+}
+
+BENCHMARK_DEFINE_F(TPCHRunner, Q6)(benchmark::State &state) {
+  execution::compiler::test::ExpressionMaker expr_maker;
+  // Lineitem.
+  auto l_table_oid = accessor_->GetTableOid("lineitem");
+  const auto &l_schema = accessor_->GetSchema(l_table_oid);
+  // Scan lineitem
+  std::unique_ptr<planner::AbstractPlanNode> l_seq_scan;
+  execution::compiler::test::OutputSchemaHelper l_seq_scan_out{0, &expr_maker};
+  {
+    // Read all needed columns
+    auto l_extendedprice =
+        expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
+    auto l_discount = expr_maker.CVE(l_schema.GetColumn("l_discount").Oid(), type::TypeId::DECIMAL);
+    auto l_shipdate = expr_maker.CVE(l_schema.GetColumn("l_shipdate").Oid(), type::TypeId::DATE);
+    auto l_quantity = expr_maker.CVE(l_schema.GetColumn("l_quantity").Oid(), type::TypeId::DECIMAL);
+    std::vector<catalog::col_oid_t> l_col_oids = {
+        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(), l_schema.GetColumn("l_shipdate").Oid(), l_schema.GetColumn("l_quantity").Oid()
+    };
+    // Make the output schema
+    l_seq_scan_out.AddOutput("l_extendedprice", l_extendedprice);
+    l_seq_scan_out.AddOutput("l_discount", l_discount);
+    auto schema = l_seq_scan_out.MakeSchema();
+    // Predicate
+    auto lo_date = expr_maker.Constant(1994, 1, 1);
+    auto hi_date = expr_maker.Constant(1995, 1, 1);
+    auto lo_discount = expr_maker.Constant(0.05f);
+    auto hi_discount = expr_maker.Constant(0.07f);
+    auto lo_qty = expr_maker.Constant(24.0f);
+    auto lo_date_comp = expr_maker.ComparisonGe(l_shipdate, lo_date);
+    auto hi_date_comp = expr_maker.ComparisonLt(l_shipdate, hi_date);
+    auto lo_discount_comp = expr_maker.ComparisonGe(l_discount, lo_discount);
+    auto hi_discount_comp = expr_maker.ComparisonLe(l_discount, hi_discount);
+    auto lo_qty_comp = expr_maker.ComparisonLt(l_quantity, lo_qty);
+    auto date_comp = expr_maker.ConjunctionAnd(lo_date_comp, hi_date_comp);
+    auto discount_comp = expr_maker.ConjunctionAnd(lo_discount_comp, hi_discount_comp);
+    auto predicate =
+        expr_maker.ConjunctionAnd(date_comp, expr_maker.ConjunctionAnd(discount_comp, lo_qty_comp));
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    l_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(predicate)
+        .SetTableOid(l_table_oid)
+                     .SetColumnOids(std::move(l_col_oids))
+        .Build();
+  }
+  // Make the aggregate
+  std::unique_ptr<planner::AbstractPlanNode> agg;
+  execution::compiler::test::OutputSchemaHelper agg_out{0, &expr_maker};
+  {
+    // Read previous layer's output
+    auto l_extendedprice = l_seq_scan_out.GetOutput("l_extendedprice");
+    auto l_discount = l_seq_scan_out.GetOutput("l_discount");
+    // Make the aggregate expressions
+    auto revenue = expr_maker.AggSum(expr_maker.OpMul(l_extendedprice, l_discount));
+    // Add them to the helper.
+    agg_out.AddAggTerm("revenue", revenue);
+    // Make the output schema
+    agg_out.AddOutput("revenue", agg_out.GetAggTermForOutput("revenue"));
+    auto schema = agg_out.MakeSchema();
+    // Build
+    planner::AggregatePlanNode::Builder builder;
+    agg = builder.SetOutputSchema(std::move(schema))
+        .AddAggregateTerm(revenue)
+        .AddChild(std::move(l_seq_scan))
+        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+        .SetHavingClausePredicate(nullptr)
+        .Build();
+  }
+
+  // Compile plan
+  auto last_op = agg.get();
+  execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
+
+  auto exec_ctx = execution::exec::ExecutionContext(
+      db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
+      common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
+
+  auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
+  // Run Once to force compilation
+  query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  // Only time execution
+  for (auto _ : state) {
+    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+  }
+}
+
+
+BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
+  execution::compiler::test::ExpressionMaker expr_maker;
+  // Nation.
+  auto n_table_oid = accessor_->GetTableOid("nation");
+  const auto &n_schema = accessor_->GetSchema(n_table_oid);
+  // Customer.
+  auto c_table_oid = accessor_->GetTableOid("customer");
+  const auto &c_schema = accessor_->GetSchema(c_table_oid);
+  // Orders.
+  auto o_table_oid = accessor_->GetTableOid("orders");
+  const auto &o_schema = accessor_->GetSchema(o_table_oid);
+  // Lineitem.
+  auto l_table_oid = accessor_->GetTableOid("lineitem");
+  const auto &l_schema = accessor_->GetSchema(l_table_oid);
+  // Supplier.
+  auto s_table_oid = accessor_->GetTableOid("supplier");
+  const auto &s_schema = accessor_->GetSchema(s_table_oid);
+  // Scan nation1
+  std::unique_ptr<planner::AbstractPlanNode> n1_seq_scan;
+  execution::compiler::test::OutputSchemaHelper n1_seq_scan_out{0, &expr_maker};
+  {
+    // Read all needed columns
+    auto n1_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
+    auto n1_nationkey =
+        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> n1_col_oids = {
+        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid()
+    };
+    // Make the output schema
+    n1_seq_scan_out.AddOutput("n1_name", n1_name);
+    n1_seq_scan_out.AddOutput("n1_nationkey", n1_nationkey);
+    // Predicate
+    auto schema = n1_seq_scan_out.MakeSchema();
+    auto france_comp = expr_maker.ComparisonEq(n1_name, expr_maker.Constant("FRANCE"));
+    auto germany_comp = expr_maker.ComparisonEq(n1_name, expr_maker.Constant("GERMANY"));
+    auto predicate = expr_maker.ConjunctionOr(france_comp, germany_comp);
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    n1_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(predicate)
+        .SetTableOid(n_table_oid)
+                      .SetColumnOids(std::move(n1_col_oids))
+        .Build();
+  }
+
+  // Scan nation2
+  std::unique_ptr<planner::AbstractPlanNode> n2_seq_scan;
+  execution::compiler::test::OutputSchemaHelper n2_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto n2_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
+    auto n2_nationkey =
+        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> n2_col_oids = {
+        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid()
+    };
+    // Make the output schema
+    n2_seq_scan_out.AddOutput("n2_name", n2_name);
+    n2_seq_scan_out.AddOutput("n2_nationkey", n2_nationkey);
+    auto schema = n2_seq_scan_out.MakeSchema();
+    // Predicate
+    auto france_comp = expr_maker.ComparisonEq(n2_name, expr_maker.Constant("FRANCE"));
+    auto germany_comp = expr_maker.ComparisonEq(n2_name, expr_maker.Constant("GERMANY"));
+    auto predicate = expr_maker.ConjunctionOr(france_comp, germany_comp);
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    n2_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(predicate)
+        .SetTableOid(n_table_oid)
+                      .SetColumnOids(std::move(n2_col_oids))
+        .Build();
+  }
+
+  // BNL
+  std::unique_ptr<planner::AbstractPlanNode> bnl;
+  execution::compiler::test::OutputSchemaHelper bnl_out{0, &expr_maker};
+  {
+    // Left
+    auto n1_name = n1_seq_scan_out.GetOutput("n1_name");
+    auto n1_nationkey = n1_seq_scan_out.GetOutput("n1_nationkey");
+    // Right
+    auto n2_name = n2_seq_scan_out.GetOutput("n2_name");
+    auto n2_nationkey = n2_seq_scan_out.GetOutput("n2_nationkey");
+    // Make the output schema
+    bnl_out.AddOutput("n1_name", n1_name);
+    bnl_out.AddOutput("n2_name", n2_name);
+    bnl_out.AddOutput("n1_nationkey", n1_nationkey);
+    bnl_out.AddOutput("n2_nationkey", n2_nationkey);
+    auto schema = bnl_out.MakeSchema();
+    // Predicate
+    auto france_comp1 = expr_maker.ComparisonEq(n1_name, expr_maker.Constant("FRANCE"));
+    auto france_comp2 = expr_maker.ComparisonEq(n2_name, expr_maker.Constant("FRANCE"));
+    auto germany_comp1 = expr_maker.ComparisonEq(n1_name, expr_maker.Constant("GERMANY"));
+    auto germany_comp2 = expr_maker.ComparisonEq(n2_name, expr_maker.Constant("GERMANY"));
+    auto eq1 = expr_maker.ConjunctionAnd(france_comp1, germany_comp2);
+    auto eq2 = expr_maker.ConjunctionAnd(france_comp2, germany_comp1);
+    auto predicate = expr_maker.ConjunctionOr(eq1, eq2);
+    // Build
+    planner::NestedLoopJoinPlanNode::Builder builder;
+    bnl = builder.AddChild(std::move(n1_seq_scan))
+        .AddChild(std::move(n2_seq_scan))
+        .SetOutputSchema(std::move(schema))
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+
+  // Scan customer
+  std::unique_ptr<planner::AbstractPlanNode> c_seq_scan;
+  execution::compiler::test::OutputSchemaHelper c_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto c_custkey = expr_maker.CVE(c_schema.GetColumn("c_custkey").Oid(), type::TypeId::INTEGER);
+    auto c_nationkey =
+        expr_maker.CVE(c_schema.GetColumn("c_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> c_col_oids = {
+        c_schema.GetColumn("c_custkey").Oid(), c_schema.GetColumn("c_nationkey").Oid()
+    };
+    // Make the output schema
+    c_seq_scan_out.AddOutput("c_custkey", c_custkey);
+    c_seq_scan_out.AddOutput("c_nationkey", c_nationkey);
+    auto schema = c_seq_scan_out.MakeSchema();
+
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    c_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(nullptr)
+        .SetTableOid(c_table_oid)
+                     .SetColumnOids(std::move(c_col_oids))
+        .Build();
+  }
+
+  // Hash Join 1
+  std::unique_ptr<planner::AbstractPlanNode> hash_join1;
+  execution::compiler::test::OutputSchemaHelper hash_join_out1{0, &expr_maker};
+  {
+    // Left columns
+    auto n1_name = bnl_out.GetOutput("n1_name");
+    auto n2_name = bnl_out.GetOutput("n2_name");
+    auto n1_nationkey = bnl_out.GetOutput("n1_nationkey");
+    auto n2_nationkey = bnl_out.GetOutput("n2_nationkey");
+    // Right columns
+    auto c_custkey = c_seq_scan_out.GetOutput("c_custkey");
+    auto c_nationkey = c_seq_scan_out.GetOutput("c_nationkey");
+    // Output Schema
+    hash_join_out1.AddOutput("n1_name", n1_name);
+    hash_join_out1.AddOutput("n2_name", n2_name);
+    hash_join_out1.AddOutput("n1_nationkey", n1_nationkey);
+    hash_join_out1.AddOutput("c_custkey", c_custkey);
+    auto schema = hash_join_out1.MakeSchema();
+    // Predicate
+    auto predicate = expr_maker.ComparisonEq(n2_nationkey, c_nationkey);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join1 = builder.AddChild(std::move(bnl))
+        .AddChild(std::move(c_seq_scan))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(n2_nationkey)
+        .AddRightHashKey(c_nationkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+
+  // Scan orders
+  std::unique_ptr<planner::AbstractPlanNode> o_seq_scan;
+  execution::compiler::test::OutputSchemaHelper o_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto o_orderkey =
+        expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
+    auto o_custkey = expr_maker.CVE(o_schema.GetColumn("o_custkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> o_col_oids = {
+        o_schema.GetColumn("o_orderkey").Oid(), o_schema.GetColumn("o_custkey").Oid()
+    };
+    // Make the output schema
+    o_seq_scan_out.AddOutput("o_orderkey", o_orderkey);
+    o_seq_scan_out.AddOutput("o_custkey", o_custkey);
+    auto schema = o_seq_scan_out.MakeSchema();
+
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    o_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(nullptr)
+        .SetTableOid(o_table_oid)
+                     .SetColumnOids(std::move(o_col_oids))
+        .Build();
+  }
+
+  // Make second hash join
+  std::unique_ptr<planner::AbstractPlanNode> hash_join2;
+  execution::compiler::test::OutputSchemaHelper hash_join_out2{0, &expr_maker};
+  {
+    // Left columns
+    auto n1_name = hash_join_out1.GetOutput("n1_name");
+    auto n2_name = hash_join_out1.GetOutput("n2_name");
+    auto n1_nationkey = hash_join_out1.GetOutput("n1_nationkey");
+    auto c_custkey = hash_join_out1.GetOutput("c_custkey");
+    // Right columns
+    auto o_orderkey = o_seq_scan_out.GetOutput("o_orderkey");
+    auto o_custkey = o_seq_scan_out.GetOutput("o_custkey");
+    // Output Schema
+    hash_join_out2.AddOutput("n1_name", n1_name);
+    hash_join_out2.AddOutput("n2_name", n2_name);
+    hash_join_out2.AddOutput("n1_nationkey", n1_nationkey);
+    hash_join_out2.AddOutput("o_orderkey", o_orderkey);
+    auto schema = hash_join_out2.MakeSchema();
+    // Predicate
+    auto predicate = expr_maker.ComparisonEq(c_custkey, o_custkey);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join2 = builder.AddChild(std::move(hash_join1))
+        .AddChild(std::move(o_seq_scan))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(c_custkey)
+        .AddRightHashKey(o_custkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+
+  // Scan lineitem
+  std::unique_ptr<planner::AbstractPlanNode> l_seq_scan;
+  execution::compiler::test::OutputSchemaHelper l_seq_scan_out{1, &expr_maker};
+  {
+    // Read all needed columns
+    auto l_extendedprice = expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
+    auto l_discount = expr_maker.CVE(l_schema.GetColumn("l_discount").Oid(), type::TypeId::DECIMAL);
+    auto l_orderkey = expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
+    auto l_suppkey = expr_maker.CVE(l_schema.GetColumn("l_suppkey").Oid(), type::TypeId::INTEGER);
+    auto l_shipdate = expr_maker.CVE(l_schema.GetColumn("l_shipdate").Oid(), type::TypeId::DATE);
+    std::vector<catalog::col_oid_t> l_col_oids = {
+        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(),
+        l_schema.GetColumn("l_orderkey").Oid(), l_schema.GetColumn("l_suppkey").Oid(),
+        l_schema.GetColumn("l_shipdate").Oid()};
+    // Make the output schema
+    auto const_one = expr_maker.Constant(1.0f);
+    auto volume = expr_maker.OpMul(l_extendedprice, expr_maker.OpMin(const_one, l_discount));
+    l_seq_scan_out.AddOutput("volume", volume);
+    l_seq_scan_out.AddOutput("l_orderkey", l_orderkey);
+    l_seq_scan_out.AddOutput("l_suppkey", l_suppkey);
+
+    std::vector<execution::compiler::test::ExpressionMaker::OwnedExpression> children;
+    children.emplace_back(l_shipdate->Copy());
+    // TODO(Amadou): Add a BuiltinFunctionExpression for @extractYear.
+    auto extract_year = expr_maker.BuiltinFunction(execution::ast::Builtin::ExtractYear, std::move(children),
+                                                   type::TypeId::INTEGER);
+    l_seq_scan_out.AddOutput("l_year", extract_year);
+    auto schema = l_seq_scan_out.MakeSchema();
+    // Predicate
+    auto lo_date = expr_maker.Constant(1995, 1, 1);
+    auto hi_date = expr_maker.Constant(1996, 12, 31);
+    auto lo_date_comp = expr_maker.ComparisonGe(l_shipdate, lo_date);
+    auto hi_date_comp = expr_maker.ComparisonLt(l_shipdate, hi_date);
+    auto predicate = expr_maker.ConjunctionAnd(lo_date_comp, hi_date_comp);
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    l_seq_scan = builder.SetOutputSchema(std::move(schema))
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(l_table_oid)
+                     .SetColumnOids(std::move(l_col_oids))
+                     .Build();
+  }
+    // make the third hash join
+  std::unique_ptr<planner::AbstractPlanNode> hash_join3;
+    execution::compiler::test::OutputSchemaHelper hash_join_out3{1, &expr_maker};
+  {
+    // Left columns
+    auto n1_name = hash_join_out2.GetOutput("n1_name");
+    auto n2_name = hash_join_out2.GetOutput("n2_name");
+    auto n1_nationkey = hash_join_out2.GetOutput("n1_nationkey");
+    auto o_orderkey = hash_join_out2.GetOutput("o_orderkey");
+
+    // Right columns
+    auto volume = l_seq_scan_out.GetOutput("volume");
+    auto l_orderkey = l_seq_scan_out.GetOutput("l_orderkey");
+    auto l_suppkey = l_seq_scan_out.GetOutput("l_suppkey");
+    auto l_year = l_seq_scan_out.GetOutput("l_year");
+    // Output Schema
+    hash_join_out3.AddOutput("n1_name", n1_name);
+    hash_join_out3.AddOutput("n2_name", n2_name);
+    hash_join_out3.AddOutput("n1_nationkey", n1_nationkey);
+    hash_join_out3.AddOutput("volume", volume);
+    hash_join_out3.AddOutput("l_suppkey", l_suppkey);
+    hash_join_out3.AddOutput("l_year", l_year);
+    auto schema = hash_join_out3.MakeSchema();
+    // Predicate
+    auto predicate = expr_maker.ComparisonEq(o_orderkey, l_orderkey);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join3 = builder.AddChild(std::move(hash_join2))
+        .AddChild(std::move(l_seq_scan))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(o_orderkey)
+        .AddRightHashKey(l_orderkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+
+  // Scan supplier
+  std::unique_ptr<planner::AbstractPlanNode> s_seq_scan;
+  execution::compiler::test::OutputSchemaHelper s_seq_scan_out{0, &expr_maker};
+  {
+    // Read all needed columns
+    auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
+    auto s_nationkey =
+        expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> s_col_oids = {
+        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_nationkey").Oid()
+    };
+    // Make the output schema
+    s_seq_scan_out.AddOutput("s_suppkey", s_suppkey);
+    s_seq_scan_out.AddOutput("s_nationkey", s_nationkey);
+    auto schema = s_seq_scan_out.MakeSchema();
+
+    // Build
+    planner::SeqScanPlanNode::Builder builder;
+    s_seq_scan = builder.SetOutputSchema(std::move(schema))
+        .SetScanPredicate(nullptr)
+        .SetTableOid(s_table_oid)
+        .Build();
+  }
+
+  // Make fourth hash join
+  std::unique_ptr<planner::AbstractPlanNode> hash_join4;
+  execution::compiler::test::OutputSchemaHelper hash_join_out4{0, &expr_maker};
+  {
+    // Left columns
+    auto s_suppkey = s_seq_scan_out.GetOutput("s_suppkey");
+    auto s_nationkey = s_seq_scan_out.GetOutput("s_nationkey");
+    // Right columns
+    auto n1_name = hash_join_out3.GetOutput("n1_name");
+    auto n2_name = hash_join_out3.GetOutput("n2_name");
+    auto n1_nationkey = hash_join_out3.GetOutput("n1_nationkey");
+    auto volume = hash_join_out3.GetOutput("volume");
+    auto l_suppkey = hash_join_out3.GetOutput("l_suppkey");
+    auto l_year = hash_join_out3.GetOutput("l_year");
+
+    // Output Schema
+    hash_join_out4.AddOutput("supp_nation", n1_name);
+    hash_join_out4.AddOutput("cust_nation", n2_name);
+    hash_join_out4.AddOutput("volume", volume);
+    hash_join_out4.AddOutput("l_year", l_year);
+    auto schema = hash_join_out4.MakeSchema();
+    // Predicate
+    auto comp1 = expr_maker.ComparisonEq(s_suppkey, l_suppkey);
+    auto comp2 = expr_maker.ComparisonEq(s_nationkey, n1_nationkey);
+    auto predicate = expr_maker.ConjunctionAnd(comp1, comp2);
+    // Build
+    planner::HashJoinPlanNode::Builder builder;
+    hash_join4 = builder.AddChild(std::move(s_seq_scan))
+        .AddChild(std::move(hash_join3))
+        .SetOutputSchema(std::move(schema))
+        .AddLeftHashKey(s_suppkey)
+        .AddLeftHashKey(s_nationkey)
+        .AddRightHashKey(l_suppkey)
+        .AddRightHashKey(n1_nationkey)
+        .SetJoinType(planner::LogicalJoinType::INNER)
+        .SetJoinPredicate(predicate)
+        .Build();
+  }
+
+  // Make the aggregate
+  std::unique_ptr<planner::AbstractPlanNode> agg;
+  execution::compiler::test::OutputSchemaHelper agg_out{0, &expr_maker};
+  {
+    // Read previous layer's output
+    auto supp_nation = hash_join_out4.GetOutput("supp_nation");
+    auto cust_nation = hash_join_out4.GetOutput("cust_nation");
+    auto volume = hash_join_out4.GetOutput("volume");
+    auto l_year = hash_join_out4.GetOutput("l_year");
+    // Make the aggregate expressions
+    auto volume_sum = expr_maker.AggSum(volume);
+    // Add them to the helper.
+    agg_out.AddGroupByTerm("supp_nation", supp_nation);
+    agg_out.AddGroupByTerm("cust_nation", cust_nation);
+    agg_out.AddGroupByTerm("l_year", l_year);
+    agg_out.AddAggTerm("volume", volume_sum);
+    // Make the output schema
+    agg_out.AddOutput("supp_nation", agg_out.GetGroupByTermForOutput("supp_nation"));
+    agg_out.AddOutput("cust_nation", agg_out.GetGroupByTermForOutput("cust_nation"));
+    agg_out.AddOutput("l_year", agg_out.GetGroupByTermForOutput("l_year"));
+    agg_out.AddOutput("volume", agg_out.GetAggTermForOutput("volume"));
+    auto schema = agg_out.MakeSchema();
+    // Build
+    planner::AggregatePlanNode::Builder builder;
+    agg = builder.SetOutputSchema(std::move(schema))
+        .AddGroupByTerm(supp_nation)
+        .AddGroupByTerm(cust_nation)
+        .AddGroupByTerm(l_year)
+        .AddAggregateTerm(volume_sum)
+        .AddChild(std::move(hash_join4))
+        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+        .SetHavingClausePredicate(nullptr)
+        .Build();
+  }
+
+  // Order By
+  std::unique_ptr<planner::AbstractPlanNode> order_by;
+    execution::compiler::test::OutputSchemaHelper order_by_out{0, &expr_maker};
+  {
+    // Read previous layer
+    auto supp_nation = agg_out.GetOutput("supp_nation");
+    auto cust_nation = agg_out.GetOutput("cust_nation");
+    auto l_year = agg_out.GetOutput("l_year");
+    auto volume = agg_out.GetOutput("volume");
+
+    order_by_out.AddOutput("supp_nation", supp_nation);
+    order_by_out.AddOutput("cust_nation", cust_nation);
+    order_by_out.AddOutput("l_year", l_year);
+    order_by_out.AddOutput("volume", volume);
+    auto schema = order_by_out.MakeSchema();
+    // Order By Clause
+    planner::SortKey clause1{supp_nation, optimizer::OrderByOrderingType::ASC};
+    planner::SortKey clause2{cust_nation, optimizer::OrderByOrderingType::ASC};
+    planner::SortKey clause3{l_year, optimizer::OrderByOrderingType::ASC};
+    // Build
+    planner::OrderByPlanNode::Builder builder;
+    order_by = builder.SetOutputSchema(std::move(schema))
+        .AddChild(std::move(agg))
+        .AddSortKey(clause1.first, clause1.second)
+        .AddSortKey(clause2.first, clause2.second)
+        .AddSortKey(clause3.first, clause3.second)
+        .Build();
+  }
+  EXECUTION_LOG_INFO("before compile");
+    // Compile plan
+    auto last_op = order_by.get();
+    execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
+    auto exec_ctx = execution::exec::ExecutionContext(
+        db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
+        common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
+
+    auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
+    // Run Once to force compilation
+    query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+    // Only time execution
+    for (auto _ : state) {
+      query->Run(common::ManagedPointer(&exec_ctx), execution::vm::ExecutionMode::Interpret);
+    }
+}
+
+
+BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+BENCHMARK_REGISTER_F(TPCHRunner, Q4)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+BENCHMARK_REGISTER_F(TPCHRunner, Q5)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+BENCHMARK_REGISTER_F(TPCHRunner, Q6)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+  BENCHMARK_REGISTER_F(TPCHRunner, Q7)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 }  // namespace terrier::runner
