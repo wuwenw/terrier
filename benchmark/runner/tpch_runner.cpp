@@ -229,7 +229,7 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
   // Compile plan
   auto last_op = order_by.get();
   execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
-
+  txn_ = txn_manager_->BeginTransaction();
   auto exec_ctx_q1 = execution::exec::ExecutionContext(
       db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
       common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
@@ -241,6 +241,7 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
   for (auto _ : state) {
     query->Run(common::ManagedPointer(&exec_ctx_q1), execution::vm::ExecutionMode::Interpret);
   }
+  txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
 
 
