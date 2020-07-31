@@ -16,6 +16,7 @@
 #include "parser/expression/operator_expression.h"
 #include "parser/expression/parameter_value_expression.h"
 #include "parser/expression/star_expression.h"
+#include "execution/sql/value_util.h"
 
 namespace terrier::execution::compiler::test {
 
@@ -59,8 +60,9 @@ class ExpressionMaker {
  * Create a string constant expression
  */
   ManagedExpression Constant(const std::string &str) {
+    auto string_val = execution::sql::ValueUtil::CreateStringVal(str);
     return MakeManaged(
-        std::make_unique<parser::ConstantValueExpression>(type::TypeId::VARCHAR, execution::sql::StringVal(str.c_str(), str.length())));
+        std::make_unique<parser::ConstantValueExpression>(type::TypeId::VARCHAR, string_val.first, std::move(string_val.second)));
   }
 
   /**
