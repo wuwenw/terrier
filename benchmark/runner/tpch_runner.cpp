@@ -2493,14 +2493,14 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
   }
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
-
-BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q4)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q5)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q6)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
- BENCHMARK_REGISTER_F(TPCHRunner, Q7)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
- BENCHMARK_REGISTER_F(TPCHRunner, Q11)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+//
+//BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q4)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q5)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q6)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q7)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q11)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 BENCHMARK_REGISTER_F(TPCHRunner, Q16)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q18)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q19)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q18)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+//BENCHMARK_REGISTER_F(TPCHRunner, Q19)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 }  // namespace terrier::runner
