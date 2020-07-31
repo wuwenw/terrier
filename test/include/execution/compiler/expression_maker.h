@@ -74,11 +74,13 @@ class ExpressionMaker {
   /**
  * Create an expression for a builtin call.
  */
-  ManagedExpression Function(std::string &&func_name,  ManagedExpression args, const type::TypeId return_value_type) {
-
+  ManagedExpression Function(std::string &&func_name,  std::vector<ManagedExpression> args, const type::TypeId return_value_type, catalog::proc_oid_t proc_oid) {
     std::vector<execution::compiler::test::ExpressionMaker::OwnedExpression> children;
-    children.emplace_back(args->Copy());
-    return MakeManaged(std::make_unique<parser::FunctionExpression>(std::string{func_name}, return_value_type, std::move(children)));
+    for (const auto & arg : args) {
+      children.emplace_back(arg->Copy());
+    }
+    return MakeManaged(std::make_unique<parser::FunctionExpression>(std::string{func_name}, return_value_type, std::move(children), proc_oid));
+
   }
 
   /**
@@ -209,6 +211,13 @@ class ExpressionMaker {
    */
   ManagedExpression OpNeg(ManagedExpression child) {
     return Operator(parser::ExpressionType::OPERATOR_UNARY_MINUS, child->GetReturnValueType(), child);
+  }
+
+  /**
+ * Create expression for NOT(child)
+ */
+  ManagedExpression OpNot(ManagedExpression child) {
+    return Operator(parser::ExpressionType::OPERATOR_NOT, type::TypeId::BOOLEAN, child);
   }
 
   /**
