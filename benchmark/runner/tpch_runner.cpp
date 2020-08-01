@@ -15,12 +15,11 @@
 #include "main/db_main.h"
 #include "planner/plannodes/aggregate_plan_node.h"
 #include "planner/plannodes/hash_join_plan_node.h"
+#include "planner/plannodes/nested_loop_join_plan_node.h"
 #include "planner/plannodes/order_by_plan_node.h"
 #include "planner/plannodes/seq_scan_plan_node.h"
-#include "planner/plannodes/nested_loop_join_plan_node.h"
 #include "storage/sql_table.h"
 #include "test_util/tpch/workload.h"
-
 
 namespace terrier::runner {
 class TPCHRunner : public benchmark::Fixture {
@@ -244,7 +243,6 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q1)(benchmark::State &state) {
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
 
-
 BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
   execution::compiler::test::ExpressionMaker expr_maker;
   // Orders.
@@ -259,14 +257,12 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
   execution::compiler::test::OutputSchemaHelper o_seq_scan_out{0, &expr_maker};
   {
     // Read all needed columns
-    auto o_orderkey =
-        expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
-    auto o_orderpriority =
-        expr_maker.CVE(o_schema.GetColumn("o_orderpriority").Oid(), type::TypeId::VARCHAR);
+    auto o_orderkey = expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
+    auto o_orderpriority = expr_maker.CVE(o_schema.GetColumn("o_orderpriority").Oid(), type::TypeId::VARCHAR);
     auto o_orderdate = expr_maker.CVE(o_schema.GetColumn("o_orderdate").Oid(), type::TypeId::DATE);
-    std::vector<catalog::col_oid_t> col_oids = {
-        o_schema.GetColumn("o_orderkey").Oid(), o_schema.GetColumn("o_orderpriority").Oid(), o_schema.GetColumn("o_orderdate").Oid()
-    };
+    std::vector<catalog::col_oid_t> col_oids = {o_schema.GetColumn("o_orderkey").Oid(),
+                                                o_schema.GetColumn("o_orderpriority").Oid(),
+                                                o_schema.GetColumn("o_orderdate").Oid()};
     // Make the output schema
     o_seq_scan_out.AddOutput("o_orderkey", o_orderkey);
     o_seq_scan_out.AddOutput("o_orderpriority", o_orderpriority);
@@ -280,25 +276,22 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     o_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(o_table_oid)
-        .SetColumnOids(std::move(col_oids))
-        .Build();
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(o_table_oid)
+                     .SetColumnOids(std::move(col_oids))
+                     .Build();
   }
   // Scan lineitem
   std::unique_ptr<planner::AbstractPlanNode> l_seq_scan;
   execution::compiler::test::OutputSchemaHelper l_seq_scan_out{1, &expr_maker};
   {
     // Read all needed columns
-    auto l_orderkey =
-        expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
-    auto l_commitdate =
-        expr_maker.CVE(l_schema.GetColumn("l_commitdate").Oid(), type::TypeId::DATE);
-    auto l_receiptdate =
-        expr_maker.CVE(l_schema.GetColumn("l_receiptdate").Oid(), type::TypeId::DATE);
-    std::vector<catalog::col_oid_t> col_oids = {
-        l_schema.GetColumn("l_orderkey").Oid(), l_schema.GetColumn("l_commitdate").Oid(), l_schema.GetColumn("l_receiptdate").Oid()
-    };
+    auto l_orderkey = expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
+    auto l_commitdate = expr_maker.CVE(l_schema.GetColumn("l_commitdate").Oid(), type::TypeId::DATE);
+    auto l_receiptdate = expr_maker.CVE(l_schema.GetColumn("l_receiptdate").Oid(), type::TypeId::DATE);
+    std::vector<catalog::col_oid_t> col_oids = {l_schema.GetColumn("l_orderkey").Oid(),
+                                                l_schema.GetColumn("l_commitdate").Oid(),
+                                                l_schema.GetColumn("l_receiptdate").Oid()};
     // Make the output schema
     l_seq_scan_out.AddOutput("l_orderkey", l_orderkey);
     auto schema = l_seq_scan_out.MakeSchema();
@@ -306,10 +299,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     l_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(l_table_oid)
-        .SetColumnOids(std::move(col_oids))
-        .Build();
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(l_table_oid)
+                     .SetColumnOids(std::move(col_oids))
+                     .Build();
   }
   // Semi Join
   std::unique_ptr<planner::AbstractPlanNode> semi_join;
@@ -328,13 +321,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     semi_join = builder.SetOutputSchema(std::move(schema))
-        .SetJoinPredicate(predicate)
-        .AddChild(std::move(o_seq_scan))
-        .AddChild(std::move(l_seq_scan))
-        .AddLeftHashKey(o_orderkey)
-        .AddRightHashKey(l_orderkey)
-        .SetJoinType(planner::LogicalJoinType::LEFT_SEMI)
-        .Build();
+                    .SetJoinPredicate(predicate)
+                    .AddChild(std::move(o_seq_scan))
+                    .AddChild(std::move(l_seq_scan))
+                    .AddLeftHashKey(o_orderkey)
+                    .AddRightHashKey(l_orderkey)
+                    .SetJoinType(planner::LogicalJoinType::LEFT_SEMI)
+                    .Build();
   }
   // Make the aggregate
   std::unique_ptr<planner::AbstractPlanNode> agg;
@@ -355,12 +348,12 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg = builder.SetOutputSchema(std::move(schema))
-        .AddGroupByTerm(o_orderpriority)
-        .AddAggregateTerm(order_count)
-        .AddChild(std::move(semi_join))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+              .AddGroupByTerm(o_orderpriority)
+              .AddAggregateTerm(order_count)
+              .AddChild(std::move(semi_join))
+              .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+              .SetHavingClausePredicate(nullptr)
+              .Build();
   }
   // Order By
   std::unique_ptr<planner::AbstractPlanNode> order_by;
@@ -376,9 +369,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
     // Build
     planner::OrderByPlanNode::Builder builder;
     order_by = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(agg))
-        .AddSortKey(clause.first, clause.second)
-        .Build();
+                   .AddChild(std::move(agg))
+                   .AddSortKey(clause.first, clause.second)
+                   .Build();
   }
 
   // Compile plan
@@ -398,7 +391,6 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q4)(benchmark::State &state) {
   }
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
-
 
 BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
   execution::compiler::test::ExpressionMaker expr_maker;
@@ -426,11 +418,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
   {
     // Read all needed columns
     auto r_name = expr_maker.CVE(r_schema.GetColumn("r_name").Oid(), type::TypeId::VARCHAR);
-    auto r_regionkey =
-        expr_maker.CVE(r_schema.GetColumn("r_regionkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> r_col_oids = {
-        r_schema.GetColumn("r_name").Oid(), r_schema.GetColumn("r_regionkey").Oid()
-    };
+    auto r_regionkey = expr_maker.CVE(r_schema.GetColumn("r_regionkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> r_col_oids = {r_schema.GetColumn("r_name").Oid(),
+                                                  r_schema.GetColumn("r_regionkey").Oid()};
     // Make the output schema
     r_seq_scan_out.AddOutput("r_regionkey", r_regionkey);
     auto schema = r_seq_scan_out.MakeSchema();
@@ -440,10 +430,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     r_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(r_table_oid)
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(r_table_oid)
                      .SetColumnOids(std::move(r_col_oids))
-        .Build();
+                     .Build();
   }
   // Scan nation
   std::unique_ptr<planner::AbstractPlanNode> n_seq_scan;
@@ -451,13 +441,11 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
   {
     // Read all needed columns
     auto n_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
-    auto n_nationkey =
-        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
-    auto n_regionkey =
-        expr_maker.CVE(n_schema.GetColumn("n_regionkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> n_col_oids = {
-        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid(), n_schema.GetColumn("n_regionkey").Oid()
-    };
+    auto n_nationkey = expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+    auto n_regionkey = expr_maker.CVE(n_schema.GetColumn("n_regionkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> n_col_oids = {n_schema.GetColumn("n_name").Oid(),
+                                                  n_schema.GetColumn("n_nationkey").Oid(),
+                                                  n_schema.GetColumn("n_regionkey").Oid()};
     // Make the output schema
     n_seq_scan_out.AddOutput("n_name", n_name);
     n_seq_scan_out.AddOutput("n_nationkey", n_nationkey);
@@ -466,10 +454,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     n_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(n_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(n_table_oid)
                      .SetColumnOids(std::move(n_col_oids))
-        .Build();
+                     .Build();
   }
   // Scan customer
   std::unique_ptr<planner::AbstractPlanNode> c_seq_scan;
@@ -477,11 +465,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
   {
     // Read all needed columns
     auto c_custkey = expr_maker.CVE(c_schema.GetColumn("c_custkey").Oid(), type::TypeId::INTEGER);
-    auto c_nationkey =
-        expr_maker.CVE(c_schema.GetColumn("c_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> c_col_oids = {
-        c_schema.GetColumn("c_custkey").Oid(), c_schema.GetColumn("c_nationkey").Oid()
-    };
+    auto c_nationkey = expr_maker.CVE(c_schema.GetColumn("c_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> c_col_oids = {c_schema.GetColumn("c_custkey").Oid(),
+                                                  c_schema.GetColumn("c_nationkey").Oid()};
     // Make the output schema
     c_seq_scan_out.AddOutput("c_custkey", c_custkey);
     c_seq_scan_out.AddOutput("c_nationkey", c_nationkey);
@@ -489,23 +475,22 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     c_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(c_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(c_table_oid)
                      .SetColumnOids(std::move(c_col_oids))
-        .Build();
+                     .Build();
   }
   // Scan orders
   std::unique_ptr<planner::AbstractPlanNode> o_seq_scan;
   execution::compiler::test::OutputSchemaHelper o_seq_scan_out{1, &expr_maker};
   {
     // Read all needed columns
-    auto o_orderkey =
-        expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
+    auto o_orderkey = expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
     auto o_custkey = expr_maker.CVE(o_schema.GetColumn("o_custkey").Oid(), type::TypeId::INTEGER);
     auto o_orderdate = expr_maker.CVE(o_schema.GetColumn("o_orderdate").Oid(), type::TypeId::DATE);
-    std::vector<catalog::col_oid_t> o_col_oids = {
-        o_schema.GetColumn("o_orderkey").Oid(), o_schema.GetColumn("o_custkey").Oid(), o_schema.GetColumn("o_orderdate").Oid()
-    };
+    std::vector<catalog::col_oid_t> o_col_oids = {o_schema.GetColumn("o_orderkey").Oid(),
+                                                  o_schema.GetColumn("o_custkey").Oid(),
+                                                  o_schema.GetColumn("o_orderdate").Oid()};
     // Make the output schema
     o_seq_scan_out.AddOutput("o_orderkey", o_orderkey);
     o_seq_scan_out.AddOutput("o_custkey", o_custkey);
@@ -519,25 +504,23 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     o_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(o_table_oid)
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(o_table_oid)
                      .SetColumnOids(std::move(o_col_oids))
-        .Build();
+                     .Build();
   }
   // Scan lineitem
   std::unique_ptr<planner::AbstractPlanNode> l_seq_scan;
   execution::compiler::test::OutputSchemaHelper l_seq_scan_out{1, &expr_maker};
   {
     // Read all needed columns
-    auto l_extendedprice =
-        expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
+    auto l_extendedprice = expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
     auto l_discount = expr_maker.CVE(l_schema.GetColumn("l_discount").Oid(), type::TypeId::DECIMAL);
-    auto l_orderkey =
-        expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
+    auto l_orderkey = expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
     auto l_suppkey = expr_maker.CVE(l_schema.GetColumn("l_suppkey").Oid(), type::TypeId::INTEGER);
     std::vector<catalog::col_oid_t> l_col_oids = {
-        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(), l_schema.GetColumn("l_orderkey").Oid(), l_schema.GetColumn("l_suppkey").Oid()
-    };
+        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(),
+        l_schema.GetColumn("l_orderkey").Oid(), l_schema.GetColumn("l_suppkey").Oid()};
     // Make the output schema
     l_seq_scan_out.AddOutput("l_extendedprice", l_extendedprice);
     l_seq_scan_out.AddOutput("l_discount", l_discount);
@@ -547,10 +530,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     l_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(l_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(l_table_oid)
                      .SetColumnOids(std::move(l_col_oids))
-        .Build();
+                     .Build();
   }
   // Scan supplier
   std::unique_ptr<planner::AbstractPlanNode> s_seq_scan;
@@ -558,11 +541,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
   {
     // Read all needed columns
     auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
-    auto s_nationkey =
-        expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> s_col_oids = {
-        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_nationkey").Oid()
-    };
+    auto s_nationkey = expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> s_col_oids = {s_schema.GetColumn("s_suppkey").Oid(),
+                                                  s_schema.GetColumn("s_nationkey").Oid()};
     // Make the output schema
     s_seq_scan_out.AddOutput("s_suppkey", s_suppkey);
     s_seq_scan_out.AddOutput("s_nationkey", s_nationkey);
@@ -570,10 +551,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     s_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(s_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(s_table_oid)
                      .SetColumnOids(std::move(s_col_oids))
-        .Build();
+                     .Build();
   }
   // Make first hash join
   std::unique_ptr<planner::AbstractPlanNode> hash_join1;
@@ -594,13 +575,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join1 = builder.AddChild(std::move(r_seq_scan))
-        .AddChild(std::move(n_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(r_regionkey)
-        .AddRightHashKey(n_regionkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(n_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(r_regionkey)
+                     .AddRightHashKey(n_regionkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Make second hash join
   std::unique_ptr<planner::AbstractPlanNode> hash_join2;
@@ -622,13 +603,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join2 = builder.AddChild(std::move(hash_join1))
-        .AddChild(std::move(c_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(n_nationkey)
-        .AddRightHashKey(c_nationkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(c_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(n_nationkey)
+                     .AddRightHashKey(c_nationkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Make third hash join
   std::unique_ptr<planner::AbstractPlanNode> hash_join3;
@@ -651,13 +632,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join3 = builder.AddChild(std::move(hash_join2))
-        .AddChild(std::move(o_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(c_custkey)
-        .AddRightHashKey(o_custkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(o_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(c_custkey)
+                     .AddRightHashKey(o_custkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Make fourth hash join
   std::unique_ptr<planner::AbstractPlanNode> hash_join4;
@@ -684,13 +665,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join4 = builder.AddChild(std::move(hash_join3))
-        .AddChild(std::move(l_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(o_orderkey)
-        .AddRightHashKey(l_orderkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(l_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(o_orderkey)
+                     .AddRightHashKey(l_orderkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Make fifth hash join
   std::unique_ptr<planner::AbstractPlanNode> hash_join5;
@@ -717,15 +698,15 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join5 = builder.AddChild(std::move(s_seq_scan))
-        .AddChild(std::move(hash_join4))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(s_nationkey)
-        .AddLeftHashKey(s_suppkey)
-        .AddRightHashKey(n_nationkey)
-        .AddRightHashKey(l_suppkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(hash_join4))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(s_nationkey)
+                     .AddLeftHashKey(s_suppkey)
+                     .AddRightHashKey(n_nationkey)
+                     .AddRightHashKey(l_suppkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Make the aggregate
   std::unique_ptr<planner::AbstractPlanNode> agg;
@@ -737,8 +718,7 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     auto n_name = hash_join_out5.GetOutput("n_name");
     // Make the aggregate expressions
     auto one_const = expr_maker.Constant(1.0f);
-    auto revenue = expr_maker.AggSum(
-        expr_maker.OpMul(l_extendedprice, expr_maker.OpMin(one_const, l_discount)));
+    auto revenue = expr_maker.AggSum(expr_maker.OpMul(l_extendedprice, expr_maker.OpMin(one_const, l_discount)));
     // Add them to the helper.
     agg_out.AddGroupByTerm("n_name", n_name);
     agg_out.AddAggTerm("revenue", revenue);
@@ -749,12 +729,12 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg = builder.SetOutputSchema(std::move(schema))
-        .AddGroupByTerm(n_name)
-        .AddAggregateTerm(revenue)
-        .AddChild(std::move(hash_join5))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+              .AddGroupByTerm(n_name)
+              .AddAggregateTerm(revenue)
+              .AddChild(std::move(hash_join5))
+              .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+              .SetHavingClausePredicate(nullptr)
+              .Build();
   }
   // Order By
   std::unique_ptr<planner::AbstractPlanNode> order_by;
@@ -771,9 +751,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q5)(benchmark::State &state) {
     // Build
     planner::OrderByPlanNode::Builder builder;
     order_by = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(agg))
-        .AddSortKey(clause.first, clause.second)
-        .Build();
+                   .AddChild(std::move(agg))
+                   .AddSortKey(clause.first, clause.second)
+                   .Build();
   }
 
   // Compile plan
@@ -804,14 +784,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q6)(benchmark::State &state) {
   execution::compiler::test::OutputSchemaHelper l_seq_scan_out{0, &expr_maker};
   {
     // Read all needed columns
-    auto l_extendedprice =
-        expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
+    auto l_extendedprice = expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
     auto l_discount = expr_maker.CVE(l_schema.GetColumn("l_discount").Oid(), type::TypeId::DECIMAL);
     auto l_shipdate = expr_maker.CVE(l_schema.GetColumn("l_shipdate").Oid(), type::TypeId::DATE);
     auto l_quantity = expr_maker.CVE(l_schema.GetColumn("l_quantity").Oid(), type::TypeId::DECIMAL);
     std::vector<catalog::col_oid_t> l_col_oids = {
-        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(), l_schema.GetColumn("l_shipdate").Oid(), l_schema.GetColumn("l_quantity").Oid()
-    };
+        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(),
+        l_schema.GetColumn("l_shipdate").Oid(), l_schema.GetColumn("l_quantity").Oid()};
     // Make the output schema
     l_seq_scan_out.AddOutput("l_extendedprice", l_extendedprice);
     l_seq_scan_out.AddOutput("l_discount", l_discount);
@@ -829,15 +808,14 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q6)(benchmark::State &state) {
     auto lo_qty_comp = expr_maker.ComparisonLt(l_quantity, lo_qty);
     auto date_comp = expr_maker.ConjunctionAnd(lo_date_comp, hi_date_comp);
     auto discount_comp = expr_maker.ConjunctionAnd(lo_discount_comp, hi_discount_comp);
-    auto predicate =
-        expr_maker.ConjunctionAnd(date_comp, expr_maker.ConjunctionAnd(discount_comp, lo_qty_comp));
+    auto predicate = expr_maker.ConjunctionAnd(date_comp, expr_maker.ConjunctionAnd(discount_comp, lo_qty_comp));
     // Build
     planner::SeqScanPlanNode::Builder builder;
     l_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(l_table_oid)
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(l_table_oid)
                      .SetColumnOids(std::move(l_col_oids))
-        .Build();
+                     .Build();
   }
   // Make the aggregate
   std::unique_ptr<planner::AbstractPlanNode> agg;
@@ -856,11 +834,11 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q6)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg = builder.SetOutputSchema(std::move(schema))
-        .AddAggregateTerm(revenue)
-        .AddChild(std::move(l_seq_scan))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+              .AddAggregateTerm(revenue)
+              .AddChild(std::move(l_seq_scan))
+              .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+              .SetHavingClausePredicate(nullptr)
+              .Build();
   }
 
   // Compile plan
@@ -880,7 +858,6 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q6)(benchmark::State &state) {
   }
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
-
 
 BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
   execution::compiler::test::ExpressionMaker expr_maker;
@@ -905,11 +882,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
   {
     // Read all needed columns
     auto n1_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
-    auto n1_nationkey =
-        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> n1_col_oids = {
-        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid()
-    };
+    auto n1_nationkey = expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> n1_col_oids = {n_schema.GetColumn("n_name").Oid(),
+                                                   n_schema.GetColumn("n_nationkey").Oid()};
     // Make the output schema
     n1_seq_scan_out.AddOutput("n1_name", n1_name);
     n1_seq_scan_out.AddOutput("n1_nationkey", n1_nationkey);
@@ -921,10 +896,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     n1_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(n_table_oid)
+                      .SetScanPredicate(predicate)
+                      .SetTableOid(n_table_oid)
                       .SetColumnOids(std::move(n1_col_oids))
-        .Build();
+                      .Build();
   }
 
   // Scan nation2
@@ -933,11 +908,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
   {
     // Read all needed columns
     auto n2_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
-    auto n2_nationkey =
-        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> n2_col_oids = {
-        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid()
-    };
+    auto n2_nationkey = expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> n2_col_oids = {n_schema.GetColumn("n_name").Oid(),
+                                                   n_schema.GetColumn("n_nationkey").Oid()};
     // Make the output schema
     n2_seq_scan_out.AddOutput("n2_name", n2_name);
     n2_seq_scan_out.AddOutput("n2_nationkey", n2_nationkey);
@@ -949,10 +922,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     n2_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(n_table_oid)
+                      .SetScanPredicate(predicate)
+                      .SetTableOid(n_table_oid)
                       .SetColumnOids(std::move(n2_col_oids))
-        .Build();
+                      .Build();
   }
 
   // BNL
@@ -982,11 +955,11 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::NestedLoopJoinPlanNode::Builder builder;
     bnl = builder.AddChild(std::move(n1_seq_scan))
-        .AddChild(std::move(n2_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+              .AddChild(std::move(n2_seq_scan))
+              .SetOutputSchema(std::move(schema))
+              .SetJoinType(planner::LogicalJoinType::INNER)
+              .SetJoinPredicate(predicate)
+              .Build();
   }
 
   // Scan customer
@@ -995,11 +968,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
   {
     // Read all needed columns
     auto c_custkey = expr_maker.CVE(c_schema.GetColumn("c_custkey").Oid(), type::TypeId::INTEGER);
-    auto c_nationkey =
-        expr_maker.CVE(c_schema.GetColumn("c_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> c_col_oids = {
-        c_schema.GetColumn("c_custkey").Oid(), c_schema.GetColumn("c_nationkey").Oid()
-    };
+    auto c_nationkey = expr_maker.CVE(c_schema.GetColumn("c_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> c_col_oids = {c_schema.GetColumn("c_custkey").Oid(),
+                                                  c_schema.GetColumn("c_nationkey").Oid()};
     // Make the output schema
     c_seq_scan_out.AddOutput("c_custkey", c_custkey);
     c_seq_scan_out.AddOutput("c_nationkey", c_nationkey);
@@ -1008,10 +979,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     c_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(c_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(c_table_oid)
                      .SetColumnOids(std::move(c_col_oids))
-        .Build();
+                     .Build();
   }
 
   // Hash Join 1
@@ -1037,13 +1008,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join1 = builder.AddChild(std::move(bnl))
-        .AddChild(std::move(c_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(n2_nationkey)
-        .AddRightHashKey(c_nationkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(c_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(n2_nationkey)
+                     .AddRightHashKey(c_nationkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
 
   // Scan orders
@@ -1051,12 +1022,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
   execution::compiler::test::OutputSchemaHelper o_seq_scan_out{1, &expr_maker};
   {
     // Read all needed columns
-    auto o_orderkey =
-        expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
+    auto o_orderkey = expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
     auto o_custkey = expr_maker.CVE(o_schema.GetColumn("o_custkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> o_col_oids = {
-        o_schema.GetColumn("o_orderkey").Oid(), o_schema.GetColumn("o_custkey").Oid()
-    };
+    std::vector<catalog::col_oid_t> o_col_oids = {o_schema.GetColumn("o_orderkey").Oid(),
+                                                  o_schema.GetColumn("o_custkey").Oid()};
     // Make the output schema
     o_seq_scan_out.AddOutput("o_orderkey", o_orderkey);
     o_seq_scan_out.AddOutput("o_custkey", o_custkey);
@@ -1065,10 +1034,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     o_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(o_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(o_table_oid)
                      .SetColumnOids(std::move(o_col_oids))
-        .Build();
+                     .Build();
   }
 
   // Make second hash join
@@ -1094,13 +1063,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join2 = builder.AddChild(std::move(hash_join1))
-        .AddChild(std::move(o_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(c_custkey)
-        .AddRightHashKey(o_custkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(o_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(c_custkey)
+                     .AddRightHashKey(o_custkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
 
   // Scan lineitem
@@ -1125,8 +1094,8 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     l_seq_scan_out.AddOutput("l_suppkey", l_suppkey);
 
     // TODO(Amadou): Add a BuiltinFunctionExpression for @extractYear.
-    auto extract_year = expr_maker.Function("extractYear", {l_shipdate},
-                                                   type::TypeId::INTEGER, terrier::catalog::postgres::EXTRACT_YEAR_PRO_OID);
+    auto extract_year = expr_maker.Function("extractYear", {l_shipdate}, type::TypeId::INTEGER,
+                                            terrier::catalog::postgres::EXTRACT_YEAR_PRO_OID);
 
     l_seq_scan_out.AddOutput("l_year", extract_year);
     auto schema = l_seq_scan_out.MakeSchema();
@@ -1144,9 +1113,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
                      .SetColumnOids(std::move(l_col_oids))
                      .Build();
   }
-    // make the third hash join
+  // make the third hash join
   std::unique_ptr<planner::AbstractPlanNode> hash_join3;
-    execution::compiler::test::OutputSchemaHelper hash_join_out3{1, &expr_maker};
+  execution::compiler::test::OutputSchemaHelper hash_join_out3{1, &expr_maker};
   {
     // Left columns
     auto n1_name = hash_join_out2.GetOutput("n1_name");
@@ -1172,13 +1141,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join3 = builder.AddChild(std::move(hash_join2))
-        .AddChild(std::move(l_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(o_orderkey)
-        .AddRightHashKey(l_orderkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(l_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(o_orderkey)
+                     .AddRightHashKey(l_orderkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
 
   // Scan supplier
@@ -1187,11 +1156,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
   {
     // Read all needed columns
     auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
-    auto s_nationkey =
-        expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> s_col_oids = {
-        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_nationkey").Oid()
-    };
+    auto s_nationkey = expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> s_col_oids = {s_schema.GetColumn("s_suppkey").Oid(),
+                                                  s_schema.GetColumn("s_nationkey").Oid()};
     // Make the output schema
     s_seq_scan_out.AddOutput("s_suppkey", s_suppkey);
     s_seq_scan_out.AddOutput("s_nationkey", s_nationkey);
@@ -1200,10 +1167,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     s_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(s_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(s_table_oid)
                      .SetColumnOids(std::move(s_col_oids))
-        .Build();
+                     .Build();
   }
 
   // Make fourth hash join
@@ -1234,15 +1201,15 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join4 = builder.AddChild(std::move(s_seq_scan))
-        .AddChild(std::move(hash_join3))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(s_suppkey)
-        .AddLeftHashKey(s_nationkey)
-        .AddRightHashKey(l_suppkey)
-        .AddRightHashKey(n1_nationkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(hash_join3))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(s_suppkey)
+                     .AddLeftHashKey(s_nationkey)
+                     .AddRightHashKey(l_suppkey)
+                     .AddRightHashKey(n1_nationkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
 
   // Make the aggregate
@@ -1270,19 +1237,19 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg = builder.SetOutputSchema(std::move(schema))
-        .AddGroupByTerm(supp_nation)
-        .AddGroupByTerm(cust_nation)
-        .AddGroupByTerm(l_year)
-        .AddAggregateTerm(volume_sum)
-        .AddChild(std::move(hash_join4))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+              .AddGroupByTerm(supp_nation)
+              .AddGroupByTerm(cust_nation)
+              .AddGroupByTerm(l_year)
+              .AddAggregateTerm(volume_sum)
+              .AddChild(std::move(hash_join4))
+              .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+              .SetHavingClausePredicate(nullptr)
+              .Build();
   }
 
   // Order By
   std::unique_ptr<planner::AbstractPlanNode> order_by;
-    execution::compiler::test::OutputSchemaHelper order_by_out{0, &expr_maker};
+  execution::compiler::test::OutputSchemaHelper order_by_out{0, &expr_maker};
   {
     // Read previous layer
     auto supp_nation = agg_out.GetOutput("supp_nation");
@@ -1302,28 +1269,28 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q7)(benchmark::State &state) {
     // Build
     planner::OrderByPlanNode::Builder builder;
     order_by = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(agg))
-        .AddSortKey(clause1.first, clause1.second)
-        .AddSortKey(clause2.first, clause2.second)
-        .AddSortKey(clause3.first, clause3.second)
-        .Build();
+                   .AddChild(std::move(agg))
+                   .AddSortKey(clause1.first, clause1.second)
+                   .AddSortKey(clause2.first, clause2.second)
+                   .AddSortKey(clause3.first, clause3.second)
+                   .Build();
   }
   EXECUTION_LOG_INFO("before compile");
-    // Compile plan
-    auto last_op = order_by.get();
-    execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
+  // Compile plan
+  auto last_op = order_by.get();
+  execution::exec::OutputPrinter printer(last_op->GetOutputSchema().Get());
 
-    auto exec_ctx_q7 = execution::exec::ExecutionContext(
-        db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
-        common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
+  auto exec_ctx_q7 = execution::exec::ExecutionContext(
+      db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn_), printer, last_op->GetOutputSchema().Get(),
+      common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);
   txn_ = txn_manager_->BeginTransaction();
-    auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
-    // Run Once to force compilation
+  auto query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
+  // Run Once to force compilation
+  query->Run(common::ManagedPointer(&exec_ctx_q7), execution::vm::ExecutionMode::Interpret);
+  // Only time execution
+  for (auto _ : state) {
     query->Run(common::ManagedPointer(&exec_ctx_q7), execution::vm::ExecutionMode::Interpret);
-    // Only time execution
-    for (auto _ : state) {
-      query->Run(common::ManagedPointer(&exec_ctx_q7), execution::vm::ExecutionMode::Interpret);
-    }
+  }
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
 
@@ -1344,11 +1311,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
   {
     // Read all needed columns
     auto n_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
-    auto n_nationkey =
-        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> n1_col_oids = {
-        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid()
-    };
+    auto n_nationkey = expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> n1_col_oids = {n_schema.GetColumn("n_name").Oid(),
+                                                   n_schema.GetColumn("n_nationkey").Oid()};
     // Make the output schema
     n_seq_scan_out1.AddOutput("n_nationkey", n_nationkey);
     auto schema = n_seq_scan_out1.MakeSchema();
@@ -1358,21 +1323,19 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     n_seq_scan1 = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(n_table_oid)
+                      .SetScanPredicate(predicate)
+                      .SetTableOid(n_table_oid)
                       .SetColumnOids(std::move(n1_col_oids))
-        .Build();
+                      .Build();
   }
   std::unique_ptr<planner::AbstractPlanNode> n_seq_scan2;
   execution::compiler::test::OutputSchemaHelper n_seq_scan_out2{0, &expr_maker};
   {
     // Read all needed columns
     auto n_name = expr_maker.CVE(n_schema.GetColumn("n_name").Oid(), type::TypeId::VARCHAR);
-    auto n_nationkey =
-        expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> n2_col_oids = {
-        n_schema.GetColumn("n_name").Oid(), n_schema.GetColumn("n_nationkey").Oid()
-    };
+    auto n_nationkey = expr_maker.CVE(n_schema.GetColumn("n_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> n2_col_oids = {n_schema.GetColumn("n_name").Oid(),
+                                                   n_schema.GetColumn("n_nationkey").Oid()};
     // Make the output schema
     n_seq_scan_out2.AddOutput("n_nationkey", n_nationkey);
     auto schema = n_seq_scan_out2.MakeSchema();
@@ -1382,10 +1345,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     n_seq_scan2 = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(n_table_oid)
+                      .SetScanPredicate(predicate)
+                      .SetTableOid(n_table_oid)
                       .SetColumnOids(std::move(n2_col_oids))
-        .Build();
+                      .Build();
   }
 
   // Scan supplier
@@ -1394,11 +1357,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
   {
     // Read all needed columns
     auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
-    auto s_nationkey =
-        expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> s1_col_oids = {
-        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_nationkey").Oid()
-    };
+    auto s_nationkey = expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> s1_col_oids = {s_schema.GetColumn("s_suppkey").Oid(),
+                                                   s_schema.GetColumn("s_nationkey").Oid()};
     // Make the output schema
     s_seq_scan_out1.AddOutput("s_suppkey", s_suppkey);
     s_seq_scan_out1.AddOutput("s_nationkey", s_nationkey);
@@ -1407,21 +1368,19 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     s_seq_scan1 = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(s_table_oid)
+                      .SetScanPredicate(nullptr)
+                      .SetTableOid(s_table_oid)
                       .SetColumnOids(std::move(s1_col_oids))
-        .Build();
+                      .Build();
   }
   std::unique_ptr<planner::AbstractPlanNode> s_seq_scan2;
   execution::compiler::test::OutputSchemaHelper s_seq_scan_out2{1, &expr_maker};
   {
     // Read all needed columns
     auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
-    auto s_nationkey =
-        expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> s2_col_oids = {
-        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_nationkey").Oid()
-    };
+    auto s_nationkey = expr_maker.CVE(s_schema.GetColumn("s_nationkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> s2_col_oids = {s_schema.GetColumn("s_suppkey").Oid(),
+                                                   s_schema.GetColumn("s_nationkey").Oid()};
     // Make the output schema
     s_seq_scan_out2.AddOutput("s_suppkey", s_suppkey);
     s_seq_scan_out2.AddOutput("s_nationkey", s_nationkey);
@@ -1430,10 +1389,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     s_seq_scan2 = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(s_table_oid)
+                      .SetScanPredicate(nullptr)
+                      .SetTableOid(s_table_oid)
                       .SetColumnOids(std::move(s2_col_oids))
-        .Build();
+                      .Build();
   }
 
   // Scan partsupp
@@ -1441,17 +1400,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
   execution::compiler::test::OutputSchemaHelper ps_seq_scan_out1{1, &expr_maker};
   {
     // Read all needed columns
-    auto ps_suppkey =
-        expr_maker.CVE(ps_schema.GetColumn("ps_suppkey").Oid(), type::TypeId::INTEGER);
-    auto ps_partkey =
-        expr_maker.CVE(ps_schema.GetColumn("ps_partkey").Oid(), type::TypeId::INTEGER);
-    auto ps_supplycost =
-        expr_maker.CVE(ps_schema.GetColumn("ps_supplycost").Oid(), type::TypeId::DECIMAL);
-    auto ps_availqty =
-        expr_maker.CVE(ps_schema.GetColumn("ps_availqty").Oid(), type::TypeId::INTEGER);
+    auto ps_suppkey = expr_maker.CVE(ps_schema.GetColumn("ps_suppkey").Oid(), type::TypeId::INTEGER);
+    auto ps_partkey = expr_maker.CVE(ps_schema.GetColumn("ps_partkey").Oid(), type::TypeId::INTEGER);
+    auto ps_supplycost = expr_maker.CVE(ps_schema.GetColumn("ps_supplycost").Oid(), type::TypeId::DECIMAL);
+    auto ps_availqty = expr_maker.CVE(ps_schema.GetColumn("ps_availqty").Oid(), type::TypeId::INTEGER);
     std::vector<catalog::col_oid_t> ps_col_oids = {
-        ps_schema.GetColumn("ps_suppkey").Oid(), ps_schema.GetColumn("ps_partkey").Oid(), ps_schema.GetColumn("ps_supplycost").Oid(), ps_schema.GetColumn("ps_availqty").Oid()
-    };
+        ps_schema.GetColumn("ps_suppkey").Oid(), ps_schema.GetColumn("ps_partkey").Oid(),
+        ps_schema.GetColumn("ps_supplycost").Oid(), ps_schema.GetColumn("ps_availqty").Oid()};
     // Make the output schema
     ps_seq_scan_out1.AddOutput("ps_suppkey", ps_suppkey);
     ps_seq_scan_out1.AddOutput("ps_partkey", ps_partkey);
@@ -1461,26 +1416,22 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     ps_seq_scan1 = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(ps_table_oid)
+                       .SetScanPredicate(nullptr)
+                       .SetTableOid(ps_table_oid)
                        .SetColumnOids(std::move(ps_col_oids))
-        .Build();
+                       .Build();
   }
   std::unique_ptr<planner::AbstractPlanNode> ps_seq_scan2;
   execution::compiler::test::OutputSchemaHelper ps_seq_scan_out2{1, &expr_maker};
   {
     // Read all needed columns
-    auto ps_suppkey =
-        expr_maker.CVE(ps_schema.GetColumn("ps_suppkey").Oid(), type::TypeId::INTEGER);
-    auto ps_partkey =
-        expr_maker.CVE(ps_schema.GetColumn("ps_partkey").Oid(), type::TypeId::INTEGER);
-    auto ps_supplycost =
-        expr_maker.CVE(ps_schema.GetColumn("ps_supplycost").Oid(), type::TypeId::DECIMAL);
-    auto ps_availqty =
-        expr_maker.CVE(ps_schema.GetColumn("ps_availqty").Oid(), type::TypeId::INTEGER);
+    auto ps_suppkey = expr_maker.CVE(ps_schema.GetColumn("ps_suppkey").Oid(), type::TypeId::INTEGER);
+    auto ps_partkey = expr_maker.CVE(ps_schema.GetColumn("ps_partkey").Oid(), type::TypeId::INTEGER);
+    auto ps_supplycost = expr_maker.CVE(ps_schema.GetColumn("ps_supplycost").Oid(), type::TypeId::DECIMAL);
+    auto ps_availqty = expr_maker.CVE(ps_schema.GetColumn("ps_availqty").Oid(), type::TypeId::INTEGER);
     std::vector<catalog::col_oid_t> ps2_col_oids = {
-        ps_schema.GetColumn("ps_suppkey").Oid(), ps_schema.GetColumn("ps_partkey").Oid(), ps_schema.GetColumn("ps_supplycost").Oid(), ps_schema.GetColumn("ps_availqty").Oid()
-    };
+        ps_schema.GetColumn("ps_suppkey").Oid(), ps_schema.GetColumn("ps_partkey").Oid(),
+        ps_schema.GetColumn("ps_supplycost").Oid(), ps_schema.GetColumn("ps_availqty").Oid()};
     // Make the output schema
     ps_seq_scan_out2.AddOutput("ps_suppkey", ps_suppkey);
     ps_seq_scan_out2.AddOutput("ps_partkey", ps_partkey);
@@ -1490,10 +1441,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     ps_seq_scan2 = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(ps_table_oid)
+                       .SetScanPredicate(nullptr)
+                       .SetTableOid(ps_table_oid)
                        .SetColumnOids(std::move(ps2_col_oids))
-        .Build();
+                       .Build();
   }
 
   // Hash Join 1
@@ -1513,13 +1464,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join1_1 = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(n_seq_scan1))
-        .AddChild(std::move(s_seq_scan1))
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .AddLeftHashKey(n_nationkey)
-        .AddRightHashKey(s_nationkey)
-        .Build();
+                       .AddChild(std::move(n_seq_scan1))
+                       .AddChild(std::move(s_seq_scan1))
+                       .SetJoinType(planner::LogicalJoinType::INNER)
+                       .SetJoinPredicate(predicate)
+                       .AddLeftHashKey(n_nationkey)
+                       .AddRightHashKey(s_nationkey)
+                       .Build();
   }
   std::unique_ptr<planner::AbstractPlanNode> hash_join1_2;
   execution::compiler::test::OutputSchemaHelper hash_join_out1_2{0, &expr_maker};
@@ -1537,13 +1488,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join1_2 = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(n_seq_scan2))
-        .AddChild(std::move(s_seq_scan2))
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .AddLeftHashKey(n_nationkey)
-        .AddRightHashKey(s_nationkey)
-        .Build();
+                       .AddChild(std::move(n_seq_scan2))
+                       .AddChild(std::move(s_seq_scan2))
+                       .SetJoinType(planner::LogicalJoinType::INNER)
+                       .SetJoinPredicate(predicate)
+                       .AddLeftHashKey(n_nationkey)
+                       .AddRightHashKey(s_nationkey)
+                       .Build();
   }
 
   // Hash Join 2
@@ -1566,13 +1517,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join2_1 = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(hash_join1_1))
-        .AddChild(std::move(ps_seq_scan1))
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .AddLeftHashKey(s_suppkey)
-        .AddRightHashKey(ps_suppkey)
-        .Build();
+                       .AddChild(std::move(hash_join1_1))
+                       .AddChild(std::move(ps_seq_scan1))
+                       .SetJoinType(planner::LogicalJoinType::INNER)
+                       .SetJoinPredicate(predicate)
+                       .AddLeftHashKey(s_suppkey)
+                       .AddRightHashKey(ps_suppkey)
+                       .Build();
   }
   std::unique_ptr<planner::AbstractPlanNode> hash_join2_2;
   execution::compiler::test::OutputSchemaHelper hash_join_out2_2{0, &expr_maker};
@@ -1594,13 +1545,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join2_2 = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(hash_join1_2))
-        .AddChild(std::move(ps_seq_scan2))
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .AddLeftHashKey(s_suppkey)
-        .AddRightHashKey(ps_suppkey)
-        .Build();
+                       .AddChild(std::move(hash_join1_2))
+                       .AddChild(std::move(ps_seq_scan2))
+                       .SetJoinType(planner::LogicalJoinType::INNER)
+                       .SetJoinPredicate(predicate)
+                       .AddLeftHashKey(s_suppkey)
+                       .AddRightHashKey(ps_suppkey)
+                       .Build();
   }
 
   // Aggregates
@@ -1622,11 +1573,11 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg1 = builder.SetOutputSchema(std::move(schema))
-        .AddAggregateTerm(value_sum)
-        .AddChild(std::move(hash_join2_1))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+               .AddAggregateTerm(value_sum)
+               .AddChild(std::move(hash_join2_1))
+               .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+               .SetHavingClausePredicate(nullptr)
+               .Build();
   }
   std::unique_ptr<planner::AbstractPlanNode> agg2;
   execution::compiler::test::OutputSchemaHelper agg_out2{1, &expr_maker};
@@ -1648,12 +1599,12 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg2 = builder.SetOutputSchema(std::move(schema))
-        .AddGroupByTerm(ps_partkey)
-        .AddAggregateTerm(value_sum)
-        .AddChild(std::move(hash_join2_2))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+               .AddGroupByTerm(ps_partkey)
+               .AddAggregateTerm(value_sum)
+               .AddChild(std::move(hash_join2_2))
+               .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+               .SetHavingClausePredicate(nullptr)
+               .Build();
   }
 
   // BNL
@@ -1675,11 +1626,11 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::NestedLoopJoinPlanNode::Builder builder;
     bnl = builder.AddChild(std::move(agg1))
-        .AddChild(std::move(agg2))
-        .SetOutputSchema(std::move(schema))
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+              .AddChild(std::move(agg2))
+              .SetOutputSchema(std::move(schema))
+              .SetJoinType(planner::LogicalJoinType::INNER)
+              .SetJoinPredicate(predicate)
+              .Build();
   }
 
   // Sort
@@ -1699,9 +1650,9 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
     // Build
     planner::OrderByPlanNode::Builder builder;
     order_by = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(bnl))
-        .AddSortKey(clause1.first, clause1.second)
-        .Build();
+                   .AddChild(std::move(bnl))
+                   .AddSortKey(clause1.first, clause1.second)
+                   .Build();
   }
 
   // Compile plan
@@ -1721,7 +1672,6 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q11)(benchmark::State &state) {
   }
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
-
 
 BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
   execution::compiler::test::ExpressionMaker expr_maker;
@@ -1744,8 +1694,8 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
     auto p_partkey = expr_maker.CVE(p_schema.GetColumn("p_partkey").Oid(), type::TypeId::INTEGER);
     auto p_size = expr_maker.CVE(p_schema.GetColumn("p_size").Oid(), type::TypeId::INTEGER);
     std::vector<catalog::col_oid_t> p_col_oids = {
-        p_schema.GetColumn("p_brand").Oid(), p_schema.GetColumn("p_type").Oid(), p_schema.GetColumn("p_partkey").Oid(), p_schema.GetColumn("p_size").Oid()
-    };
+        p_schema.GetColumn("p_brand").Oid(), p_schema.GetColumn("p_type").Oid(), p_schema.GetColumn("p_partkey").Oid(),
+        p_schema.GetColumn("p_size").Oid()};
     // Make the output schema
     p_seq_scan_out.AddOutput("p_brand", p_brand);
     p_seq_scan_out.AddOutput("p_type", p_type);
@@ -1756,7 +1706,8 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
     // Predicate
     auto brand_comp = expr_maker.ComparisonNeq(p_brand, expr_maker.Constant("Brand#45"));
     auto type_like = expr_maker.Constant("MEDIUM POLISHED%");
-    auto like_call = expr_maker.Function("like", {p_type, type_like}, type::TypeId::BOOLEAN, catalog::postgres::LIKE_PRO_OID);
+    auto like_call =
+        expr_maker.Function("like", {p_type, type_like}, type::TypeId::BOOLEAN, catalog::postgres::LIKE_PRO_OID);
     auto conversion_call =
         expr_maker.Function("sqlToBool", {like_call}, type::TypeId::BOOLEAN, catalog::postgres::SQL_TO_BOOL_PRO_OID);
     auto type_comp = expr_maker.OpNot(conversion_call);
@@ -1772,18 +1723,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
                         expr_maker.ComparisonEq(p_size, expr_maker.Constant(19)),
                         expr_maker.ConjunctionOr(
                             expr_maker.ComparisonEq(p_size, expr_maker.Constant(3)),
-                            expr_maker.ConjunctionOr(
-                                expr_maker.ComparisonEq(p_size, expr_maker.Constant(36)),
-                                expr_maker.ComparisonEq(p_size, expr_maker.Constant(9)))))))));
-    auto predicate =
-        expr_maker.ConjunctionAnd(brand_comp, expr_maker.ConjunctionAnd(type_comp, size_comp));
+                            expr_maker.ConjunctionOr(expr_maker.ComparisonEq(p_size, expr_maker.Constant(36)),
+                                                     expr_maker.ComparisonEq(p_size, expr_maker.Constant(9)))))))));
+    auto predicate = expr_maker.ConjunctionAnd(brand_comp, expr_maker.ConjunctionAnd(type_comp, size_comp));
     // Build
     planner::SeqScanPlanNode::Builder builder;
     p_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(p_table_oid)
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(p_table_oid)
                      .SetColumnOids(std::move(p_col_oids))
-        .Build();
+                     .Build();
   }
 
   // Scan supplier
@@ -1793,24 +1742,24 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
     // Read all needed columns
     auto s_suppkey = expr_maker.CVE(s_schema.GetColumn("s_suppkey").Oid(), type::TypeId::INTEGER);
     auto s_comment = expr_maker.CVE(s_schema.GetColumn("s_comment").Oid(), type::TypeId::VARCHAR);
-    std::vector<catalog::col_oid_t> s_col_oids = {
-        s_schema.GetColumn("s_suppkey").Oid(), s_schema.GetColumn("s_comment").Oid()
-    };
+    std::vector<catalog::col_oid_t> s_col_oids = {s_schema.GetColumn("s_suppkey").Oid(),
+                                                  s_schema.GetColumn("s_comment").Oid()};
     // Make the output schema
     s_seq_scan_out.AddOutput("s_suppkey", s_suppkey);
     auto schema = s_seq_scan_out.MakeSchema();
     // Predicate
     auto comment_like = expr_maker.Constant("%Customer%Complaints%");
-    auto like_call = expr_maker.Function("like", {s_comment, comment_like}, type::TypeId::BOOLEAN, catalog::postgres::LIKE_PRO_OID);
+    auto like_call =
+        expr_maker.Function("like", {s_comment, comment_like}, type::TypeId::BOOLEAN, catalog::postgres::LIKE_PRO_OID);
     auto predicate =
         expr_maker.Function("sqlToBool", {like_call}, type::TypeId::BOOLEAN, catalog::postgres::SQL_TO_BOOL_PRO_OID);
     // Build
     planner::SeqScanPlanNode::Builder builder;
     s_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(s_table_oid)
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(s_table_oid)
                      .SetColumnOids(std::move(s_col_oids))
-        .Build();
+                     .Build();
   }
 
   // Scan partsupp
@@ -1818,13 +1767,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
   execution::compiler::test::OutputSchemaHelper ps_seq_scan_out{1, &expr_maker};
   {
     // Read all needed columns
-    auto ps_suppkey =
-        expr_maker.CVE(ps_schema.GetColumn("ps_suppkey").Oid(), type::TypeId::INTEGER);
-    auto ps_partkey =
-        expr_maker.CVE(ps_schema.GetColumn("ps_partkey").Oid(), type::TypeId::INTEGER);
-   std::vector<catalog::col_oid_t> ps_col_oids = {
-       ps_schema.GetColumn("ps_suppkey").Oid(), ps_schema.GetColumn("ps_partkey").Oid()
-    };
+    auto ps_suppkey = expr_maker.CVE(ps_schema.GetColumn("ps_suppkey").Oid(), type::TypeId::INTEGER);
+    auto ps_partkey = expr_maker.CVE(ps_schema.GetColumn("ps_partkey").Oid(), type::TypeId::INTEGER);
+    std::vector<catalog::col_oid_t> ps_col_oids = {ps_schema.GetColumn("ps_suppkey").Oid(),
+                                                   ps_schema.GetColumn("ps_partkey").Oid()};
     // Make the output schema
     ps_seq_scan_out.AddOutput("ps_suppkey", ps_suppkey);
     ps_seq_scan_out.AddOutput("ps_partkey", ps_partkey);
@@ -1832,10 +1778,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     ps_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
+                      .SetScanPredicate(nullptr)
                       .SetTableOid(ps_table_oid)
-        .SetColumnOids(std::move(ps_col_oids))
-        .Build();
+                      .SetColumnOids(std::move(ps_col_oids))
+                      .Build();
   }
 
   // First hash join
@@ -1862,13 +1808,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join1 = builder.AddChild(std::move(p_seq_scan))
-        .AddChild(std::move(ps_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(p_partkey)
-        .AddRightHashKey(ps_partkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(ps_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(p_partkey)
+                     .AddRightHashKey(ps_partkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
 
   // Second hash join
@@ -1893,13 +1839,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join2 = builder.AddChild(std::move(s_seq_scan))
-        .AddChild(std::move(hash_join1))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(s_suppkey)
-        .AddRightHashKey(ps_suppkey)
-        .SetJoinType(planner::LogicalJoinType::RIGHT_ANTI)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(hash_join1))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(s_suppkey)
+                     .AddRightHashKey(ps_suppkey)
+                     .SetJoinType(planner::LogicalJoinType::RIGHT_ANTI)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
 
   // Make the aggregate
@@ -1927,14 +1873,14 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg = builder.SetOutputSchema(std::move(schema))
-        .AddGroupByTerm(p_brand)
-        .AddGroupByTerm(p_type)
-        .AddGroupByTerm(p_size)
-        .AddAggregateTerm(supplier_cnt)
-        .AddChild(std::move(hash_join2))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+              .AddGroupByTerm(p_brand)
+              .AddGroupByTerm(p_type)
+              .AddGroupByTerm(p_size)
+              .AddAggregateTerm(supplier_cnt)
+              .AddChild(std::move(hash_join2))
+              .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+              .SetHavingClausePredicate(nullptr)
+              .Build();
   }
 
   // Order By
@@ -1960,12 +1906,12 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
     // Build
     planner::OrderByPlanNode::Builder builder;
     order_by = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(agg))
-        .AddSortKey(clause1.first, clause1.second)
-        .AddSortKey(clause2.first, clause2.second)
-        .AddSortKey(clause3.first, clause3.second)
-        .AddSortKey(clause4.first, clause4.second)
-        .Build();
+                   .AddChild(std::move(agg))
+                   .AddSortKey(clause1.first, clause1.second)
+                   .AddSortKey(clause2.first, clause2.second)
+                   .AddSortKey(clause3.first, clause3.second)
+                   .AddSortKey(clause4.first, clause4.second)
+                   .Build();
   }
 
   // Compile plan
@@ -1986,7 +1932,6 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q16)(benchmark::State &state) {
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
 
-
 BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
   execution::compiler::test::ExpressionMaker expr_maker;
   // Customer.
@@ -2005,9 +1950,8 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Read all needed columns
     auto c_custkey = expr_maker.CVE(c_schema.GetColumn("c_custkey").Oid(), type::TypeId::INTEGER);
     auto c_name = expr_maker.CVE(c_schema.GetColumn("c_name").Oid(), type::TypeId::VARCHAR);
-    std::vector<catalog::col_oid_t> c_col_oids = {
-        c_schema.GetColumn("c_custkey").Oid(), c_schema.GetColumn("c_name").Oid()
-    };
+    std::vector<catalog::col_oid_t> c_col_oids = {c_schema.GetColumn("c_custkey").Oid(),
+                                                  c_schema.GetColumn("c_name").Oid()};
     // Make the output schema
     c_seq_scan_out.AddOutput("c_custkey", c_custkey);
     c_seq_scan_out.AddOutput("c_name", c_name);
@@ -2015,25 +1959,23 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     c_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(c_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(c_table_oid)
                      .SetColumnOids(std::move(c_col_oids))
-        .Build();
+                     .Build();
   }
   // Scan orders
   std::unique_ptr<planner::AbstractPlanNode> o_seq_scan;
   execution::compiler::test::OutputSchemaHelper o_seq_scan_out{1, &expr_maker};
   {
     // Read all needed columns
-    auto o_orderkey =
-        expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
+    auto o_orderkey = expr_maker.CVE(o_schema.GetColumn("o_orderkey").Oid(), type::TypeId::INTEGER);
     auto o_custkey = expr_maker.CVE(o_schema.GetColumn("o_custkey").Oid(), type::TypeId::INTEGER);
     auto o_orderdate = expr_maker.CVE(o_schema.GetColumn("o_orderdate").Oid(), type::TypeId::DATE);
-    auto o_totalprice =
-        expr_maker.CVE(o_schema.GetColumn("o_totalprice").Oid(), type::TypeId::DECIMAL);
+    auto o_totalprice = expr_maker.CVE(o_schema.GetColumn("o_totalprice").Oid(), type::TypeId::DECIMAL);
     std::vector<catalog::col_oid_t> o_col_oids = {
-        o_schema.GetColumn("o_orderkey").Oid(), o_schema.GetColumn("o_custkey").Oid(), o_schema.GetColumn("o_orderdate").Oid(), o_schema.GetColumn("o_totalprice").Oid()
-    };
+        o_schema.GetColumn("o_orderkey").Oid(), o_schema.GetColumn("o_custkey").Oid(),
+        o_schema.GetColumn("o_orderdate").Oid(), o_schema.GetColumn("o_totalprice").Oid()};
     // Make the output schema
     o_seq_scan_out.AddOutput("o_orderkey", o_orderkey);
     o_seq_scan_out.AddOutput("o_custkey", o_custkey);
@@ -2043,10 +1985,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     o_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(o_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(o_table_oid)
                      .SetColumnOids(std::move(o_col_oids))
-        .Build();
+                     .Build();
   }
   // Scan lineitem1
   std::unique_ptr<planner::AbstractPlanNode> l_seq_scan1;
@@ -2054,10 +1996,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
   {
     // Read all needed columns
     auto l_quantity = expr_maker.CVE(l_schema.GetColumn("l_quantity").Oid(), type::TypeId::DECIMAL);
-    auto l_orderkey =
-        expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
+    auto l_orderkey = expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
     std::vector<catalog::col_oid_t> l_col_oids = {
-        l_schema.GetColumn("l_quantity").Oid(),l_schema.GetColumn("l_orderkey").Oid(),
+        l_schema.GetColumn("l_quantity").Oid(),
+        l_schema.GetColumn("l_orderkey").Oid(),
     };
     // Make the output schema
     l_seq_scan_out1.AddOutput("l_quantity", l_quantity);
@@ -2066,10 +2008,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     l_seq_scan1 = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(l_table_oid)
+                      .SetScanPredicate(nullptr)
+                      .SetTableOid(l_table_oid)
                       .SetColumnOids(std::move(l_col_oids))
-        .Build();
+                      .Build();
   }
   // Scan lineitem2
   std::unique_ptr<planner::AbstractPlanNode> l_seq_scan2;
@@ -2077,10 +2019,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
   {
     // Read all needed columns
     auto l_quantity = expr_maker.CVE(l_schema.GetColumn("l_quantity").Oid(), type::TypeId::DECIMAL);
-    auto l_orderkey =
-        expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
+    auto l_orderkey = expr_maker.CVE(l_schema.GetColumn("l_orderkey").Oid(), type::TypeId::INTEGER);
     std::vector<catalog::col_oid_t> l2_col_oids = {
-        l_schema.GetColumn("l_quantity").Oid(),l_schema.GetColumn("l_orderkey").Oid(),
+        l_schema.GetColumn("l_quantity").Oid(),
+        l_schema.GetColumn("l_orderkey").Oid(),
     };
     // Make the output schema
     l_seq_scan_out2.AddOutput("l_quantity", l_quantity);
@@ -2089,10 +2031,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     l_seq_scan2 = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(l_table_oid)
+                      .SetScanPredicate(nullptr)
+                      .SetTableOid(l_table_oid)
                       .SetColumnOids(std::move(l2_col_oids))
-        .Build();
+                      .Build();
   }
   // Make the aggregate
   std::unique_ptr<planner::AbstractPlanNode> agg1;
@@ -2110,17 +2052,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     agg_out1.AddOutput("l_orderkey", agg_out1.GetGroupByTermForOutput("l_orderkey"));
     auto schema = agg_out1.MakeSchema();
     // Make having
-    auto having =
-        expr_maker.ComparisonGt(agg_out1.GetAggTermForOutput("sum_qty"), expr_maker.Constant(300.0f));
+    auto having = expr_maker.ComparisonGt(agg_out1.GetAggTermForOutput("sum_qty"), expr_maker.Constant(300.0f));
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg1 = builder.SetOutputSchema(std::move(schema))
-        .AddGroupByTerm(l_orderkey)
-        .AddAggregateTerm(sum_qty)
-        .AddChild(std::move(l_seq_scan1))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(having)
-        .Build();
+               .AddGroupByTerm(l_orderkey)
+               .AddAggregateTerm(sum_qty)
+               .AddChild(std::move(l_seq_scan1))
+               .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+               .SetHavingClausePredicate(having)
+               .Build();
   }
   // First hash join
   // Hash Join 1
@@ -2145,13 +2086,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join1 = builder.AddChild(std::move(agg1))
-        .AddChild(std::move(o_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(l_orderkey)
-        .AddRightHashKey(o_orderkey)
-        .SetJoinType(planner::LogicalJoinType::RIGHT_SEMI)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(o_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(l_orderkey)
+                     .AddRightHashKey(o_orderkey)
+                     .SetJoinType(planner::LogicalJoinType::RIGHT_SEMI)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Second hash join
   std::unique_ptr<planner::AbstractPlanNode> hash_join2;
@@ -2177,13 +2118,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join2 = builder.AddChild(std::move(c_seq_scan))
-        .AddChild(std::move(hash_join1))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(c_custkey)
-        .AddRightHashKey(o_custkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(hash_join1))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(c_custkey)
+                     .AddRightHashKey(o_custkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Make third hash join
   std::unique_ptr<planner::AbstractPlanNode> hash_join3;
@@ -2211,13 +2152,13 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join3 = builder.AddChild(std::move(hash_join2))
-        .AddChild(std::move(l_seq_scan2))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(o_orderkey)
-        .AddRightHashKey(l_orderkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(l_seq_scan2))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(o_orderkey)
+                     .AddRightHashKey(l_orderkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Make the aggregate
   std::unique_ptr<planner::AbstractPlanNode> agg2;
@@ -2251,16 +2192,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg2 = builder.SetOutputSchema(std::move(schema))
-        .AddGroupByTerm(c_name)
-        .AddGroupByTerm(c_custkey)
-        .AddGroupByTerm(o_orderkey)
-        .AddGroupByTerm(o_orderdate)
-        .AddGroupByTerm(o_totalprice)
-        .AddAggregateTerm(sum_qty)
-        .AddChild(std::move(hash_join3))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+               .AddGroupByTerm(c_name)
+               .AddGroupByTerm(c_custkey)
+               .AddGroupByTerm(o_orderkey)
+               .AddGroupByTerm(o_orderdate)
+               .AddGroupByTerm(o_totalprice)
+               .AddAggregateTerm(sum_qty)
+               .AddChild(std::move(hash_join3))
+               .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+               .SetHavingClausePredicate(nullptr)
+               .Build();
   }
   // Order By
   std::unique_ptr<planner::AbstractPlanNode> order_by;
@@ -2286,10 +2227,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q18)(benchmark::State &state) {
     // Build
     planner::OrderByPlanNode::Builder builder;
     order_by = builder.SetOutputSchema(std::move(schema))
-        .AddChild(std::move(agg2))
-        .AddSortKey(clause1.first, clause1.second)
-        .AddSortKey(clause2.first, clause2.second)
-        .Build();
+                   .AddChild(std::move(agg2))
+                   .AddSortKey(clause1.first, clause1.second)
+                   .AddSortKey(clause2.first, clause2.second)
+                   .Build();
   }
 
   // Compile plan
@@ -2323,18 +2264,16 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
   execution::compiler::test::OutputSchemaHelper l_seq_scan_out{1, &expr_maker};
   {
     // Read all needed columns
-    auto l_extendedprice =
-        expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
+    auto l_extendedprice = expr_maker.CVE(l_schema.GetColumn("l_extendedprice").Oid(), type::TypeId::DECIMAL);
     auto l_discount = expr_maker.CVE(l_schema.GetColumn("l_discount").Oid(), type::TypeId::DECIMAL);
     auto l_partkey = expr_maker.CVE(l_schema.GetColumn("l_partkey").Oid(), type::TypeId::INTEGER);
     auto l_quantity = expr_maker.CVE(l_schema.GetColumn("l_quantity").Oid(), type::TypeId::DECIMAL);
-    auto l_shipmode =
-        expr_maker.CVE(l_schema.GetColumn("l_shipmode").Oid(), type::TypeId::VARCHAR);
-    auto l_shipinstruct =
-        expr_maker.CVE(l_schema.GetColumn("l_shipinstruct").Oid(), type::TypeId::VARCHAR);
-   std::vector<catalog::col_oid_t> l_col_oids = {
-       l_schema.GetColumn("l_extendedprice").Oid(),l_schema.GetColumn("l_discount").Oid(),l_schema.GetColumn("l_partkey").Oid(),l_schema.GetColumn("l_quantity").Oid(),l_schema.GetColumn("l_shipmode").Oid(),l_schema.GetColumn("l_shipinstruct").Oid()
-    };
+    auto l_shipmode = expr_maker.CVE(l_schema.GetColumn("l_shipmode").Oid(), type::TypeId::VARCHAR);
+    auto l_shipinstruct = expr_maker.CVE(l_schema.GetColumn("l_shipinstruct").Oid(), type::TypeId::VARCHAR);
+    std::vector<catalog::col_oid_t> l_col_oids = {
+        l_schema.GetColumn("l_extendedprice").Oid(), l_schema.GetColumn("l_discount").Oid(),
+        l_schema.GetColumn("l_partkey").Oid(),       l_schema.GetColumn("l_quantity").Oid(),
+        l_schema.GetColumn("l_shipmode").Oid(),      l_schema.GetColumn("l_shipinstruct").Oid()};
     // Make the output schema
     l_seq_scan_out.AddOutput("l_extendedprice", l_extendedprice);
     l_seq_scan_out.AddOutput("l_discount", l_discount);
@@ -2345,20 +2284,18 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
     auto schema = l_seq_scan_out.MakeSchema();
 
     // Predicate.
-    auto shipmode_comp =
-        expr_maker.ConjunctionOr(expr_maker.ComparisonEq(l_shipmode, expr_maker.Constant("AIR")),
-                                 expr_maker.ComparisonEq(l_shipmode, expr_maker.Constant("AIR REG")));
-    auto shipinstruct_comp =
-        expr_maker.ComparisonEq(l_shipinstruct, expr_maker.Constant("DELIVER IN PERSON"));
+    auto shipmode_comp = expr_maker.ConjunctionOr(expr_maker.ComparisonEq(l_shipmode, expr_maker.Constant("AIR")),
+                                                  expr_maker.ComparisonEq(l_shipmode, expr_maker.Constant("AIR REG")));
+    auto shipinstruct_comp = expr_maker.ComparisonEq(l_shipinstruct, expr_maker.Constant("DELIVER IN PERSON"));
     auto predicate = expr_maker.ConjunctionAnd(shipmode_comp, shipinstruct_comp);
 
     // Build
     planner::SeqScanPlanNode::Builder builder;
     l_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(predicate)
-        .SetTableOid(l_table_oid)
+                     .SetScanPredicate(predicate)
+                     .SetTableOid(l_table_oid)
                      .SetColumnOids(std::move(l_col_oids))
-        .Build();
+                     .Build();
   }
   // Part Scan
   std::unique_ptr<planner::AbstractPlanNode> p_seq_scan;
@@ -2366,13 +2303,12 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
   {
     // Read all needed columns
     auto p_brand = expr_maker.CVE(p_schema.GetColumn("p_brand").Oid(), type::TypeId::VARCHAR);
-    auto p_container =
-        expr_maker.CVE(p_schema.GetColumn("p_container").Oid(), type::TypeId::VARCHAR);
+    auto p_container = expr_maker.CVE(p_schema.GetColumn("p_container").Oid(), type::TypeId::VARCHAR);
     auto p_partkey = expr_maker.CVE(p_schema.GetColumn("p_partkey").Oid(), type::TypeId::INTEGER);
     auto p_size = expr_maker.CVE(p_schema.GetColumn("p_size").Oid(), type::TypeId::INTEGER);
-    std::vector<catalog::col_oid_t> p_col_oids ={
-        p_schema.GetColumn("p_brand").Oid(),p_schema.GetColumn("p_container").Oid(),p_schema.GetColumn("p_partkey").Oid(),p_schema.GetColumn("p_size").Oid()
-    };
+    std::vector<catalog::col_oid_t> p_col_oids = {
+        p_schema.GetColumn("p_brand").Oid(), p_schema.GetColumn("p_container").Oid(),
+        p_schema.GetColumn("p_partkey").Oid(), p_schema.GetColumn("p_size").Oid()};
     // Make the output schema
     p_seq_scan_out.AddOutput("p_brand", p_brand);
     p_seq_scan_out.AddOutput("p_container", p_container);
@@ -2382,10 +2318,10 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
     // Build
     planner::SeqScanPlanNode::Builder builder;
     p_seq_scan = builder.SetOutputSchema(std::move(schema))
-        .SetScanPredicate(nullptr)
-        .SetTableOid(p_table_oid)
+                     .SetScanPredicate(nullptr)
+                     .SetTableOid(p_table_oid)
                      .SetColumnOids(std::move(p_col_oids))
-        .Build();
+                     .Build();
   }
   // Hash Join 1
   std::unique_ptr<planner::AbstractPlanNode> hash_join1;
@@ -2409,16 +2345,15 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
     auto schema = hash_join_out1.MakeSchema();
     // Predicate1
     execution::compiler::test::ExpressionMaker::ManagedExpression predicate1, predicate2, predicate3;
-    auto gen_predicate_clause = [&](const std::string &brand, const std::vector<std::string> &sm,
-                                    float lo_qty, float hi_qty, int32_t lo_size, int32_t hi_size) {
+    auto gen_predicate_clause = [&](const std::string &brand, const std::vector<std::string> &sm, float lo_qty,
+                                    float hi_qty, int32_t lo_size, int32_t hi_size) {
       auto brand_comp = expr_maker.ComparisonEq(p_brand, expr_maker.Constant(brand));
       auto container_comp = expr_maker.ConjunctionOr(
           expr_maker.ComparisonEq(p_container, expr_maker.Constant(sm[0])),
           expr_maker.ConjunctionOr(
               expr_maker.ComparisonEq(p_container, expr_maker.Constant(sm[1])),
-              expr_maker.ConjunctionOr(
-                  expr_maker.ComparisonEq(p_container, expr_maker.Constant(sm[2])),
-                  expr_maker.ComparisonEq(p_container, expr_maker.Constant(sm[3])))));
+              expr_maker.ConjunctionOr(expr_maker.ComparisonEq(p_container, expr_maker.Constant(sm[2])),
+                                       expr_maker.ComparisonEq(p_container, expr_maker.Constant(sm[3])))));
       auto qty_lo_comp = expr_maker.ComparisonGe(l_quantity, expr_maker.Constant(lo_qty));
       auto qty_hi_comp = expr_maker.ComparisonLe(l_quantity, expr_maker.Constant(hi_qty));
       auto qty_comp = expr_maker.ConjunctionAnd(qty_lo_comp, qty_hi_comp);
@@ -2427,27 +2362,22 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
       auto size_comp = expr_maker.ConjunctionAnd(size_lo_comp, size_hi_comp);
 
       return expr_maker.ConjunctionAnd(
-          brand_comp, expr_maker.ConjunctionAnd(container_comp,
-                                                expr_maker.ConjunctionAnd(qty_comp, size_comp)));
+          brand_comp, expr_maker.ConjunctionAnd(container_comp, expr_maker.ConjunctionAnd(qty_comp, size_comp)));
     };
-    predicate1 =
-        gen_predicate_clause("Brand#12", {"SM CASE", "SM BOX", "SM PACK", "SM PKG"}, 1, 11, 1, 5);
-    predicate2 = gen_predicate_clause("Brand#23", {"MED BAG", "MED BOX", "MED PKG", "MED PACK"}, 10,
-                                      20, 1, 10);
-    predicate3 =
-        gen_predicate_clause("Brand#34", {"LG CASE", "LG BOX", "LG PACK", "LG PKG"}, 20, 30, 1, 15);
-    auto predicate =
-        expr_maker.ConjunctionOr(predicate1, expr_maker.ConjunctionOr(predicate2, predicate3));
+    predicate1 = gen_predicate_clause("Brand#12", {"SM CASE", "SM BOX", "SM PACK", "SM PKG"}, 1, 11, 1, 5);
+    predicate2 = gen_predicate_clause("Brand#23", {"MED BAG", "MED BOX", "MED PKG", "MED PACK"}, 10, 20, 1, 10);
+    predicate3 = gen_predicate_clause("Brand#34", {"LG CASE", "LG BOX", "LG PACK", "LG PKG"}, 20, 30, 1, 15);
+    auto predicate = expr_maker.ConjunctionOr(predicate1, expr_maker.ConjunctionOr(predicate2, predicate3));
     // Build
     planner::HashJoinPlanNode::Builder builder;
     hash_join1 = builder.AddChild(std::move(p_seq_scan))
-        .AddChild(std::move(l_seq_scan))
-        .SetOutputSchema(std::move(schema))
-        .AddLeftHashKey(p_partkey)
-        .AddRightHashKey(l_partkey)
-        .SetJoinType(planner::LogicalJoinType::INNER)
-        .SetJoinPredicate(predicate)
-        .Build();
+                     .AddChild(std::move(l_seq_scan))
+                     .SetOutputSchema(std::move(schema))
+                     .AddLeftHashKey(p_partkey)
+                     .AddRightHashKey(l_partkey)
+                     .SetJoinType(planner::LogicalJoinType::INNER)
+                     .SetJoinPredicate(predicate)
+                     .Build();
   }
   // Make the aggregate
   std::unique_ptr<planner::AbstractPlanNode> agg;
@@ -2458,8 +2388,7 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
     auto l_discount = hash_join_out1.GetOutput("l_discount");
     // Make the aggregate expressions
     auto one_const = expr_maker.Constant(1.0f);
-    auto revenue = expr_maker.AggSum(
-        expr_maker.OpMul(l_extendedprice, expr_maker.OpMin(one_const, l_discount)));
+    auto revenue = expr_maker.AggSum(expr_maker.OpMul(l_extendedprice, expr_maker.OpMin(one_const, l_discount)));
     // Add them to the helper.
     agg_out.AddAggTerm("revenue", revenue);
     // Make the output schema
@@ -2469,11 +2398,11 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
     // Build
     planner::AggregatePlanNode::Builder builder;
     agg = builder.SetOutputSchema(std::move(schema))
-        .AddAggregateTerm(revenue)
-        .AddChild(std::move(hash_join1))
-        .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
-        .SetHavingClausePredicate(nullptr)
-        .Build();
+              .AddAggregateTerm(revenue)
+              .AddChild(std::move(hash_join1))
+              .SetAggregateStrategyType(planner::AggregateStrategyType::HASH)
+              .SetHavingClausePredicate(nullptr)
+              .Build();
   }
 
   // Compile plan
@@ -2493,14 +2422,15 @@ BENCHMARK_DEFINE_F(TPCHRunner, Q19)(benchmark::State &state) {
   }
   txn_manager_->Commit(txn_, transaction::TransactionUtil::EmptyCallback, nullptr);
 }
+
 //
-BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q4)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q5)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q6)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
- BENCHMARK_REGISTER_F(TPCHRunner, Q7)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
- BENCHMARK_REGISTER_F(TPCHRunner, Q11)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q16)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
-BENCHMARK_REGISTER_F(TPCHRunner, Q18)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q1)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q4)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q5)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q6)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q7)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q11)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q16)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
+// BENCHMARK_REGISTER_F(TPCHRunner, Q18)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 BENCHMARK_REGISTER_F(TPCHRunner, Q19)->Unit(benchmark::kMillisecond)->UseManualTime()->Iterations(10);
 }  // namespace terrier::runner

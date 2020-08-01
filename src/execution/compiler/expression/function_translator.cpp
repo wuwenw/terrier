@@ -4,8 +4,8 @@
 #include "execution/compiler/compilation_context.h"
 #include "execution/compiler/work_context.h"
 #include "execution/functions/function_context.h"
-#include "parser/expression/function_expression.h"
 #include "loggers/execution_logger.h"
+#include "parser/expression/function_expression.h"
 namespace terrier::execution::compiler {
 
 FunctionTranslator::FunctionTranslator(const parser::FunctionExpression &expr, CompilationContext *compilation_context)

@@ -1821,16 +1821,15 @@ void DatabaseCatalog::BootstrapProcs(const common::ManagedPointer<transaction::T
 
   // Extract Year
   CreateProcedure(txn, postgres::EXTRACT_YEAR_PRO_OID, "extractYear", postgres::INTERNAL_LANGUAGE_OID,
-                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"date"}, {int_type}, {int_type}, {},
-                  int_type, "", false);
+                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"date"}, {int_type}, {int_type}, {}, int_type, "", false);
   // Like
   CreateProcedure(txn, postgres::LIKE_PRO_OID, "like", postgres::INTERNAL_LANGUAGE_OID,
-                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"ctx", "string", "pattern"}, {invalid_type, str_type, str_type}, {invalid_type, str_type, str_type}, {},
-                  bool_type, "", false);
+                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"ctx", "string", "pattern"},
+                  {invalid_type, str_type, str_type}, {invalid_type, str_type, str_type}, {}, bool_type, "", false);
   // Sql to bool
   CreateProcedure(txn, postgres::SQL_TO_BOOL_PRO_OID, "sqlToBool", postgres::INTERNAL_LANGUAGE_OID,
-                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"sql", "bool"}, {invalid_type, bool_type}, {invalid_type, bool_type}, {},
-                  bool_type, "", false);
+                  postgres::NAMESPACE_DEFAULT_NAMESPACE_OID, {"sql", "bool"}, {invalid_type, bool_type},
+                  {invalid_type, bool_type}, {}, bool_type, "", false);
   BootstrapProcContexts(txn);
 }
 
@@ -1902,13 +1901,14 @@ void DatabaseCatalog::BootstrapProcContexts(const common::ManagedPointer<transac
   SetProcCtxPtr(txn, postgres::NP_RUNNERS_DUMMY_REAL_PRO_OID, func_context);
   txn->RegisterAbortAction([=]() { delete func_context; });
 
-  func_context = new execution::functions::FunctionContext("extractYear", type::TypeId::INTEGER, {type::TypeId::INTEGER},
-                                                                execution::ast::Builtin::ExtractYear);
+  func_context = new execution::functions::FunctionContext(
+      "extractYear", type::TypeId::INTEGER, {type::TypeId::INTEGER}, execution::ast::Builtin::ExtractYear);
   txn->RegisterAbortAction([=]() { delete func_context; });
   SetProcCtxPtr(txn, postgres::EXTRACT_YEAR_PRO_OID, func_context);
 
-  func_context = new execution::functions::FunctionContext("like", type::TypeId::BOOLEAN, {type::TypeId::INVALID, type::TypeId::VARCHAR, type::TypeId::VARCHAR},
-                                                           execution::ast::Builtin::Like);
+  func_context = new execution::functions::FunctionContext(
+      "like", type::TypeId::BOOLEAN, {type::TypeId::INVALID, type::TypeId::VARCHAR, type::TypeId::VARCHAR},
+      execution::ast::Builtin::Like);
   txn->RegisterAbortAction([=]() { delete func_context; });
   SetProcCtxPtr(txn, postgres::LIKE_PRO_OID, func_context);
 
