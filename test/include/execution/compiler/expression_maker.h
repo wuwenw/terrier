@@ -161,6 +161,7 @@ class ExpressionMaker {
     return Comparison(parser::ExpressionType::COMPARE_GREATER_THAN_OR_EQUAL_TO, child1, child2);
   }
 
+
   /**
    * Create a unary operation expression
    */

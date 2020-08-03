@@ -5,6 +5,7 @@
 #include "common/managed_pointer.h"
 #include "execution/exec/execution_context.h"
 #include "execution/execution_util.h"
+#include "test_util/tpch/tpch_query.h"
 #include "execution/sql/value_util.h"
 #include "execution/table_generator/table_generator.h"
 #include "main/db_main.h"
@@ -37,5 +38,12 @@ void Workload::GenerateTPCHTables(execution::exec::ExecutionContext *exec_ctx, c
     auto num_rows = table_reader.ReadTable(dir_name + table_name + ".schema", dir_name + table_name + ".data");
     EXECUTION_LOG_INFO("Wrote {} rows on table {}.", num_rows, table_name);
   }
+  //tpch::TPCHQuery();
 }
+
+//void Workload::LoadTPCHQueries(execution::exec::ExecutionContext *exec_ctx) {
+//  tpch::TPCHQuery();
+//  queries_.emplace_back(execution::compiler::ExecutableQuery(
+//      query_file, common::ManagedPointer<execution::exec::ExecutionContext>(exec_ctx), true));
+//}
 }  // namespace terrier::tpch

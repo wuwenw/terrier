@@ -5,6 +5,7 @@
 #include <vector>
 
 #include "catalog/catalog_defs.h"
+#include "execution/compiler/executable_query.h"
 #include "common/managed_pointer.h"
 #include "execution/table_generator/sample_output.h"
 #include "execution/vm/module.h"
@@ -38,6 +39,8 @@ class Workload {
  private:
   void GenerateTPCHTables(execution::exec::ExecutionContext *exec_ctx, const std::string &dir_name);
 
+  void LoadTPCHQueries(execution::exec::ExecutionContext *exec_ctx);
+
   std::vector<parser::ConstantValueExpression> GetQueryParams(const std::string &query_name);
 
   common::ManagedPointer<DBMain> db_main_;
@@ -46,7 +49,7 @@ class Workload {
   common::ManagedPointer<transaction::TransactionManager> txn_manager_;
   // catalog::db_oid_t db_oid_;
   catalog::namespace_oid_t ns_oid_;
-
+  std::vector<execution::compiler::ExecutableQuery> queries_;
   execution::exec::SampleOutput sample_output_;
 };
 
