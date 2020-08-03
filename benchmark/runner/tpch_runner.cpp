@@ -52,7 +52,6 @@ class TPCHRunner : public benchmark::Fixture {
                                .SetBlockStoreReuse(1000000)
                                .SetRecordBufferSegmentSize(1000000)
                                .SetRecordBufferSegmentReuse(1000000)
-                               .SetNetworkPort(15721);
     db_main_ = db_main_builder.Build();
     txn_manager_ = db_main_->GetTransactionLayer()->GetTransactionManager();
     txn_ = txn_manager_->BeginTransaction();
