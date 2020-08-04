@@ -257,8 +257,8 @@ void Workload::MakeExecutableQ1() {
         .AddSortKey(clause2.first, clause2.second)
         .Build();
   }
-  auto last_op = order_by.get();
-  auto exec_query = execution::compiler::CompilationContext::Compile(*last_op, exec_settings_, accessor_.get());
+  q1_last_op_ = std::move(order_by);
+  auto exec_query = execution::compiler::CompilationContext::Compile(*q1_last_op_.get(), exec_settings_, accessor_.get());
   q1_ = std::move(exec_query);
 
 }

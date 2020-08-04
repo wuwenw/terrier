@@ -62,6 +62,7 @@ namespace terrier::tpch {
 
         std::vector<std::unique_ptr<execution::compiler::ExecutableQuery>> queries_;
         std::unique_ptr<execution::compiler::ExecutableQuery> q1_ = nullptr;
+      std::unique_ptr<planner::AbstractPlanNode> q1_last_op_ = nullptr;
     };
 
 }  // namespace terrier::tpch
