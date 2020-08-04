@@ -153,6 +153,6 @@ void ExecutableQuery::Run(common::ManagedPointer<exec::ExecutionContext> exec_ct
   for (const auto &fragment : fragments_) {
     fragment->Run(query_state.get(), mode);
   }
-}
+}ƒ
 
 }  // namespace terrier::execution::compiler
