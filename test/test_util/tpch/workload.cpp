@@ -70,13 +70,13 @@ void Workload::LoadTPCHQueries() {
   MakeExecutableQ11();
   MakeExecutableQ18();
 
-  queries_.emplace_back(std::move(q1_));
-  queries_.emplace_back(std::move(q4_));
-  queries_.emplace_back(std::move(q5_));
-  queries_.emplace_back(std::move(q6_));
-  queries_.emplace_back(std::move(q7_));
-  queries_.emplace_back(std::move(q11_));
-  queries_.emplace_back(std::move(q18_));
+queries_.emplace_back(std::move(q1_));
+  //queries_.emplace_back(std::move(q4_));
+//  queries_.emplace_back(std::move(q5_));
+//  queries_.emplace_back(std::move(q6_));
+//  queries_.emplace_back(std::move(q7_));
+//  queries_.emplace_back(std::move(q11_));
+//  queries_.emplace_back(std::move(q18_));
 }
 
 
@@ -106,7 +106,7 @@ void Workload::Execute(int8_t worker_id, uint64_t execution_us_per_worker, uint6
 
     auto output_schema = queries_[index[counter]]->GetPlan().GetOutputSchema().Get();
     execution::exec::OutputPrinter printer(output_schema);
-    // execution::exec::OutputPrinter printer(output_schema);
+    //execution::exec::NoOpResultConsumer printer;
     auto exec_ctx = execution::exec::ExecutionContext(
         db_oid_, common::ManagedPointer<transaction::TransactionContext>(txn), printer, output_schema,
         common::ManagedPointer<catalog::CatalogAccessor>(accessor_), exec_settings_);

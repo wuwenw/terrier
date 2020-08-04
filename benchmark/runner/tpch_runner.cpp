@@ -54,7 +54,7 @@ BENCHMARK_DEFINE_F(TPCHRunner, Runner)(benchmark::State &state) {
   tpch_workload_ = std::make_unique<tpch::Workload>(common::ManagedPointer<DBMain>(db_main_), tpch_database_name_,
                                                     tpch_table_root_);
 
-  for (uint32_t query_num = 0; query_num < query_num_; ++query_num)
+  for (uint32_t query_num = 0; query_num < 2; ++query_num)
     for (auto num_threads = 1; num_threads <= total_num_threads_; num_threads += 2)
       for (uint32_t repeat = 0; repeat < 3; ++repeat)
         for (auto avg_interval_us : avg_interval_us_) {
