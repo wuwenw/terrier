@@ -69,11 +69,12 @@ void Workload::LoadTPCHQueries() {
   MakeExecutableQ7();
   MakeExecutableQ11();
   MakeExecutableQ18();
-  //queries_.emplace_back(std::move(q1_));
-  //queries_.emplace_back(std::move(q4_));
-  //queries_.emplace_back(std::move(q5_));
-  //queries_.emplace_back(std::move(q6_));
-  //queries_.emplace_back(std::move(q7_));
+
+  queries_.emplace_back(std::move(q1_));
+  queries_.emplace_back(std::move(q4_));
+  queries_.emplace_back(std::move(q5_));
+  queries_.emplace_back(std::move(q6_));
+  queries_.emplace_back(std::move(q7_));
   queries_.emplace_back(std::move(q11_));
   queries_.emplace_back(std::move(q18_));
 }
