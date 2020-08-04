@@ -51,6 +51,12 @@ namespace terrier::tpch {
 
         std::vector<parser::ConstantValueExpression> GetQueryParams(const std::string &query_name);
         void MakeExecutableQ1();
+      void MakeExecutableQ4();
+      void MakeExecutableQ5();
+      void MakeExecutableQ6();
+      void MakeExecutableQ7();
+      void MakeExecutableQ11();
+      void MakeExecutableQ18();
         common::ManagedPointer<DBMain> db_main_;
         common::ManagedPointer<storage::BlockStore> block_store_;
         common::ManagedPointer<catalog::Catalog> catalog_;
@@ -63,6 +69,20 @@ namespace terrier::tpch {
         std::vector<std::unique_ptr<execution::compiler::ExecutableQuery>> queries_;
         std::unique_ptr<execution::compiler::ExecutableQuery> q1_ = nullptr;
       std::unique_ptr<planner::AbstractPlanNode> q1_last_op_ = nullptr;
+
+      std::unique_ptr<execution::compiler::ExecutableQuery> q4_ = nullptr;
+      std::unique_ptr<planner::AbstractPlanNode> q4_last_op_ = nullptr;
+      std::unique_ptr<execution::compiler::ExecutableQuery> q5_ = nullptr;
+      std::unique_ptr<planner::AbstractPlanNode> q5_last_op_ = nullptr;
+      std::unique_ptr<execution::compiler::ExecutableQuery> q6_ = nullptr;
+      std::unique_ptr<planner::AbstractPlanNode> q6_last_op_ = nullptr;
+      std::unique_ptr<execution::compiler::ExecutableQuery> q7_ = nullptr;
+      std::unique_ptr<planner::AbstractPlanNode> q7_last_op_ = nullptr;
+      std::unique_ptr<execution::compiler::ExecutableQuery> q11_ = nullptr;
+      std::unique_ptr<planner::AbstractPlanNode> q11_last_op_ = nullptr;
+
+      std::unique_ptr<execution::compiler::ExecutableQuery> q18_ = nullptr;
+      std::unique_ptr<planner::AbstractPlanNode> q18_last_op_ = nullptr;
     };
 
 }  // namespace terrier::tpch
