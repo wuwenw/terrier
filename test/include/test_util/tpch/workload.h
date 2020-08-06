@@ -5,8 +5,8 @@
 #include <vector>
 
 #include "catalog/catalog_defs.h"
-#include "execution/compiler/executable_query.h"
 #include "common/managed_pointer.h"
+#include "execution/compiler/executable_query.h"
 #include "execution/table_generator/sample_output.h"
 #include "execution/vm/module.h"
 

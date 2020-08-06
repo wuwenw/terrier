@@ -38,10 +38,10 @@ void Workload::GenerateTPCHTables(execution::exec::ExecutionContext *exec_ctx, c
     auto num_rows = table_reader.ReadTable(dir_name + table_name + ".schema", dir_name + table_name + ".data");
     EXECUTION_LOG_INFO("Wrote {} rows on table {}.", num_rows, table_name);
   }
-  //tpch::TPCHQuery();
+  // tpch::TPCHQuery();
 }
 
-//void Workload::LoadTPCHQueries(execution::exec::ExecutionContext *exec_ctx) {
+// void Workload::LoadTPCHQueries(execution::exec::ExecutionContext *exec_ctx) {
 //  tpch::TPCHQuery();
 //  queries_.emplace_back(execution::compiler::ExecutableQuery(
 //      query_file, common::ManagedPointer<execution::exec::ExecutionContext>(exec_ctx), true));
