@@ -416,30 +416,43 @@ class VarlenEntry {
    */
   template <bool EqualityCheck>
   static bool CompareEqualOrNot(const VarlenEntry &left, const VarlenEntry &right) {
-    TERRIER_ASSERT(left.Size() >= 0, "Left VarlenEntry has negative size?");
-    TERRIER_ASSERT(right.Size() >= 0, "Right VarlenEntry has negative size?");
-
     // Compare the size and prefix in one fell swoop, ignoring the sign bit indicating reclaimability.
-    uint8_t left_first = *reinterpret_cast<const uint8_t *>(&left);
-    uint8_t right_first = *reinterpret_cast<const uint8_t *>(&right);
-    bool first_byte_same = (left_first << 1) == (right_first << 1);
-    bool following_bytes_same =
-        0 == std::memcmp(reinterpret_cast<const char *>(&left) + 1, reinterpret_cast<const char *>(&right) + 1,
-                         sizeof(left.size_) + PrefixSize() - 1);
-    if (first_byte_same && following_bytes_same) {
-      // Prefix and length are equal.
+    const uint64_t left_size_prefix = *reinterpret_cast<const uint64_t *>(&left);
+    const uint64_t right_size_prefix = *reinterpret_cast<const uint64_t *>(&right);
+    // Mask off the reclaimability bit and compare.
+    // Note that due to endianness, when reading this out as a uint64_t the reclaim bit is NOT the sign bit.
+    constexpr uint64_t remove_reclaim_mask = 0xffffffff7fffffff;  // You're just gonna have to believe me
+    const bool size_and_prefix_same =
+        (left_size_prefix & remove_reclaim_mask) == (right_size_prefix & remove_reclaim_mask);
+
+    if (size_and_prefix_same) {
+      // Check if we even need to look any further
+      if (left.Size() <= PrefixSize()) {
+        // we looked at everything we need to
+        return EqualityCheck;
+      }
+      // compare more bytes
       if (left.IsInlined()) {
-        if (std::memcmp(left.prefix_, right.prefix_, PrefixSize()) == 0) {
-          return EqualityCheck ? true : false;
+        // inspect the remaining inlined bytes
+        if (std::memcmp(&left.content_, &right.content_, left.Size() - PrefixSize()) == 0) {
+          return EqualityCheck;
         }
       } else {
-        if (std::memcmp(left.content_, right.content_, left.Size()) == 0) {
-          return EqualityCheck ? true : false;
+        // inspect the remaining non-inlined bytes, skipping prefix-size bytes since those are duplicated at the start
+        // of content
+        TERRIER_ASSERT(std::memcmp(left.content_, &left.prefix_, PrefixSize()) == 0,
+                       "The prefix should be at the beginning of the non-inlined content again. We assert this since "
+                       "we're about to skip it on the real comparison.");
+        TERRIER_ASSERT(std::memcmp(right.content_, &right.prefix_, PrefixSize()) == 0,
+                       "The prefix should be at the beginning of the non-inlined content again. We assert this since "
+                       "we're about to skip it on the real comparison.");
+        if (std::memcmp(left.content_ + PrefixSize(), right.content_ + PrefixSize(), left.Size() - PrefixSize()) == 0) {
+          return EqualityCheck;
         }
       }
     }
     // Not equal.
-    return EqualityCheck ? false : true;
+    return !EqualityCheck;
   }
 
   /**
