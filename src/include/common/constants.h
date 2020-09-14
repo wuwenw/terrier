@@ -102,16 +102,16 @@ struct Constants {
   /**
    * Flag indicating if parallel execution is supported.
    */
-  static constexpr const bool IS_PARALLEL_EXECUTION_ENABLED = true;
+  static constexpr const bool IS_PARALLEL_EXECUTION_ENABLED = false;
 
   /**
    * Number of threads of parallel execution
    */
-  static constexpr const int NUM_THREADS = -1;
+  static constexpr const int NUM_THREADS = 8;
 
   /**
    * Flag indicating if static partitioner is used
    */
-  static constexpr const bool IS_STATIC_PARTITIONER_ENABLED = false;
+  static constexpr const bool IS_STATIC_PARTITIONER_ENABLED = true;
 };
 }  // namespace terrier::common

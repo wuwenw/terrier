@@ -139,7 +139,8 @@ void Pipeline::Prepare(const exec::ExecutionSettings &exec_settings) {
 
   const bool parallel_exec_disabled = !exec_settings.GetIsParallelQueryExecutionEnabled();
   const bool parallel_consumer = true;
-  if (parallel_exec_disabled || !parallel_consumer || parallelism_ == Pipeline::Parallelism::Serial) {
+  const bool parallel_index = parallelism_ == Pipeline::Parallelism::index_parallel;
+  if ((parallel_exec_disabled || !parallel_consumer || parallelism_ == Pipeline::Parallelism::Serial) && (!parallel_index)) {
     parallelism_ = Pipeline::Parallelism::Serial;
   } else {
     parallelism_ = Pipeline::Parallelism::Parallel;

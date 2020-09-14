@@ -49,7 +49,7 @@ class Pipeline {
    * Flexible option should be used when both serial and parallel operation is supported, but no
    * preference is taken.
    */
-  enum class Parallelism : uint8_t { Serial = 0, Parallel = 2 };
+  enum class Parallelism : uint8_t { Serial = 0, index_parallel = 1, Parallel = 2 };
 
   /**
    * Enum class representing whether the pipeline is vectorized.
