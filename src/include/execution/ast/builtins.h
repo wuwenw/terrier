@@ -264,6 +264,7 @@ namespace terrier::execution::ast {
   F(IndexInsertUnique, indexInsertUnique)                               \
   F(IndexInsertWithSlot, indexInsertWithSlot)                           \
   F(IndexDelete, indexDelete)                                           \
+  F(IndexLive, indexLive)                                               \
   F(StorageInterfaceFree, storageInterfaceFree)                         \
   /* Trig */                                                            \
   F(ACos, acos)                                                         \

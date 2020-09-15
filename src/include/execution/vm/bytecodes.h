@@ -557,6 +557,8 @@ namespace terrier::execution::vm {
   F(StorageInterfaceIndexDelete, OperandType::Local, OperandType::Local)                                              \
   F(StorageInterfaceFree, OperandType::Local)                                                                         \
                                                                                                                       \
+  F(IndexLive, OperandType::Local, OperandType::Local)                                                                \
+                                                                                                                      \
   /* Trig functions */                                                                                                \
   F(Pi, OperandType::Local)                                                                                           \
   F(E, OperandType::Local)                                                                                            \

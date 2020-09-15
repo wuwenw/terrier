@@ -191,6 +191,7 @@ class DatabaseCatalog {
    * @return vector of OIDs for all of the indexes on this table
    */
   std::vector<index_oid_t> GetIndexOids(common::ManagedPointer<transaction::TransactionContext> txn, table_oid_t table);
+  void MakeIndexLive(const common::ManagedPointer<transaction::TransactionContext> txn, index_oid_t index_oid);
 
   /**
    * Create the catalog entries for a new index.

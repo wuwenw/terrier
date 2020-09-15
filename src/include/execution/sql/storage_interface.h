@@ -85,7 +85,7 @@ class EXPORT StorageInterface {
    * @param table_tuple_slot slot corresponding to the item.
    */
   void IndexDelete(storage::TupleSlot table_tuple_slot);
-
+  void MakeIndexLive(catalog::index_oid_t index_oid);
   /**
    * Insert into the current index
    * @return Whether insertion was successful.

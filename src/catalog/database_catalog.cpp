@@ -327,8 +327,8 @@ void DatabaseCatalog::BootstrapPRIs() {
   pg_index_all_cols_pri_ = indexes_->InitializerForProjectedRow(pg_index_all_oids);
   pg_index_all_cols_prm_ = indexes_->ProjectionMapForOids(pg_index_all_oids);
 
-  const std::vector<col_oid_t> get_indexes_oids{postgres::INDOID_COL_OID};
-  get_indexes_pri_ = indexes_->InitializerForProjectedRow(get_class_oid_kind_oids);
+  const std::vector<col_oid_t> get_indexes_oids{postgres::INDOID_COL_OID, postgres::INDISLIVE_COL_OID};
+  get_indexes_pri_ = indexes_->InitializerForProjectedRow(get_indexes_oids);
 
   const std::vector<col_oid_t> delete_index_oids{postgres::INDOID_COL_OID, postgres::INDRELID_COL_OID};
   delete_index_pri_ = indexes_->InitializerForProjectedRow(delete_index_oids);
@@ -995,7 +995,9 @@ std::vector<index_oid_t> DatabaseCatalog::GetIndexOids(
   for (auto &slot : index_scan_results) {
     const auto result UNUSED_ATTRIBUTE = indexes_->Select(txn, slot, select_pr);
     TERRIER_ASSERT(result, "Index already verified visibility. This shouldn't fail.");
-    index_oids.emplace_back(*(reinterpret_cast<index_oid_t *>(select_pr->AccessForceNotNull(0))));
+    if (*(reinterpret_cast<bool *>(select_pr->AccessForceNotNull(1)))) {
+      index_oids.emplace_back(*(reinterpret_cast<index_oid_t *>(select_pr->AccessForceNotNull(0))));
+    }
   }
 
   // Finish
@@ -1009,6 +1011,46 @@ index_oid_t DatabaseCatalog::CreateIndex(const common::ManagedPointer<transactio
   if (!TryLock(txn)) return INVALID_INDEX_OID;
   const index_oid_t index_oid = static_cast<index_oid_t>(next_oid_++);
   return CreateIndexEntry(txn, ns, table, index_oid, name, schema) ? index_oid : INVALID_INDEX_OID;
+}
+
+void DatabaseCatalog::MakeIndexLive(const common::ManagedPointer<transaction::TransactionContext> txn,
+                                    index_oid_t index_oid) {
+  if (!TryLock(txn)) return;
+  std::vector<storage::TupleSlot> index_results;
+  // Now we need to delete from pg_index and its indexes
+  // Initialize PRs for pg_index
+  const auto index_oid_pr = indexes_oid_index_->GetProjectedRowInitializer();
+  const auto index_table_pr = indexes_table_index_->GetProjectedRowInitializer();
+
+  auto *const buffer = common::AllocationUtil::AllocateAligned(pg_index_all_cols_pri_.ProjectedRowSize());
+  auto *key_pr = pg_index_all_cols_pri_.InitializeRow(buffer);
+
+  key_pr = index_oid_pr.InitializeRow(buffer);
+  *(reinterpret_cast<index_oid_t *>(key_pr->AccessForceNotNull(0))) = index_oid;
+
+  indexes_oid_index_->ScanKey(*txn, *key_pr, &index_results);
+  TERRIER_ASSERT(index_results.size() == 1,
+                 "Incorrect number of results from index scan. Expect 1 because it's a unique index. size() of 0 "
+                 "implies an error in Catalog state because scanning pg_class worked, but it doesn't exist in "
+                 "pg_index. Something broke.");
+
+  // Delete from pg_index table
+  txn->StageDelete(db_oid_, postgres::INDEX_TABLE_OID, index_results[0]);
+  auto result = indexes_->Delete(txn, index_results[0]);
+  TERRIER_ASSERT(
+      result,
+      "Delete from pg_index should always succeed as write-write conflicts are detected during delete from pg_class");
+
+  auto *const indexes_insert_redo = txn->StageWrite(db_oid_, postgres::INDEX_TABLE_OID, pg_index_all_cols_pri_);
+  auto *const indexes_insert_pr = indexes_insert_redo->Delta();
+  result = indexes_->Select(txn, index_results[0], indexes_insert_pr);
+
+  *(reinterpret_cast<bool *>(
+      indexes_insert_pr->AccessForceNotNull(pg_index_all_cols_prm_[postgres::INDISLIVE_COL_OID]))) = true;
+
+  // Insert into pg_index table
+  const auto indexes_tuple_slot UNUSED_ATTRIBUTE = indexes_->Insert(txn, indexes_insert_redo);
+  delete[] buffer;
 }
 
 bool DatabaseCatalog::DeleteIndex(const common::ManagedPointer<transaction::TransactionContext> txn,
@@ -1553,8 +1595,12 @@ bool DatabaseCatalog::CreateIndexEntry(const common::ManagedPointer<transaction:
       indexes_insert_pr->AccessForceNotNull(pg_index_all_cols_prm_[postgres::INDISVALID_COL_OID]))) = true;
   *(reinterpret_cast<bool *>(
       indexes_insert_pr->AccessForceNotNull(pg_index_all_cols_prm_[postgres::INDISREADY_COL_OID]))) = true;
+  bool internal = false;
+  if (index_oid.UnderlyingValue() < 1000) {
+    internal = true;
+  }
   *(reinterpret_cast<bool *>(
-      indexes_insert_pr->AccessForceNotNull(pg_index_all_cols_prm_[postgres::INDISLIVE_COL_OID]))) = true;
+      indexes_insert_pr->AccessForceNotNull(pg_index_all_cols_prm_[postgres::INDISLIVE_COL_OID]))) = internal;
   *(reinterpret_cast<storage::index::IndexType *>(
       indexes_insert_pr->AccessForceNotNull(pg_index_all_cols_prm_[postgres::IND_TYPE_COL_OID]))) = schema.type_;
 

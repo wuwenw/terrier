@@ -120,6 +120,8 @@ std::vector<std::pair<common::ManagedPointer<storage::index::Index>, const Index
   return dbc_->GetIndexes(txn_, table);
 }
 
+void CatalogAccessor::MakeIndexLive(index_oid_t index_oid) const { return dbc_->MakeIndexLive(txn_, index_oid); }
+
 index_oid_t CatalogAccessor::GetIndexOid(std::string name) const {
   NormalizeObjectName(&name);
   for (auto &path : search_path_) {

@@ -1908,6 +1908,10 @@ VM_OP void OpStorageInterfaceIndexInsertWithSlot(bool *result,
 VM_OP void OpStorageInterfaceIndexDelete(terrier::execution::sql::StorageInterface *storage_interface,
                                          terrier::storage::TupleSlot *tuple_slot);
 
+VM_OP_WARM void OpIndexLive(terrier::execution::exec::ExecutionContext *exec_ctx, uint32_t index_oid) {
+  exec_ctx->GetAccessor()->MakeIndexLive(terrier::catalog::index_oid_t(index_oid));
+}
+
 VM_OP void OpStorageInterfaceFree(terrier::execution::sql::StorageInterface *storage_interface);
 
 // ---------------------------------

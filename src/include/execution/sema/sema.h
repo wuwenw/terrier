@@ -151,6 +151,7 @@ class Sema : public ast::AstVisitor<Sema> {
   void CheckResultBufferCall(ast::CallExpr *call, ast::Builtin builtin);
   // TODO(WAN): <charconv> unsupported void CheckCSVReaderCall(ast::CallExpr *call, ast::Builtin builtin);
   void CheckBuiltinPRCall(ast::CallExpr *call, ast::Builtin builtin);
+  void CheckMakeIndexLive(ast::CallExpr *call);
   void CheckBuiltinStorageInterfaceCall(ast::CallExpr *call, ast::Builtin builtin);
   void CheckBuiltinIndexIteratorInit(ast::CallExpr *call, ast::Builtin builtin);
   void CheckBuiltinIndexIteratorGetSize(ast::CallExpr *call);

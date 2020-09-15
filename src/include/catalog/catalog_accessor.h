@@ -244,7 +244,7 @@ class EXPORT CatalogAccessor {
    * @return OID for the index, INVALID_INDEX_OID if the operation failed
    */
   index_oid_t CreateIndex(namespace_oid_t ns, table_oid_t table, std::string name, const IndexSchema &schema) const;
-
+  void MakeIndexLive(index_oid_t index_oid) const;
   /**
    * Gets the schema that was used to define the index
    * @param index corresponding to the requested key schema, this must be a valid oid from GetIndexOid. Invalid input

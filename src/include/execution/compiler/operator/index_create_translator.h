@@ -46,7 +46,7 @@ class IndexCreateTranslator : public OperatorTranslator, public PipelineDriver {
   /**
    * Nothing to tear down.
    */
-  void TearDownQueryState(FunctionBuilder *function) const override{};
+  void TearDownQueryState(FunctionBuilder *function) const override;
 
   /**
    * Initilize a thread local storage interface and index pr, work for both serial and parallel
@@ -99,6 +99,8 @@ class IndexCreateTranslator : public OperatorTranslator, public PipelineDriver {
   // Generate a scan over the VPI.
   void ScanVPI(WorkContext *ctx, FunctionBuilder *function, ast::Expr *vpi) const;
   void IndexInsert(WorkContext *ctx, FunctionBuilder *function) const;
+
+  void MakeIndexLive(FunctionBuilder *function) const;
 
   std::vector<catalog::col_oid_t> AllColOids(const catalog::Schema &table_schema) const;
 

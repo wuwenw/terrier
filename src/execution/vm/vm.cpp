@@ -2046,6 +2046,14 @@ void VM::Interpret(const uint8_t *ip, Frame *frame) {  // NOLINT
   GEN_PARAM_GET(String, StringVal)
 #undef GEN_PARAM_GET
 
+  OP(IndexLive) : {
+    auto *exec_ctx = frame->LocalAt<exec::ExecutionContext *>(READ_LOCAL_ID());
+    auto index_oid = frame->LocalAt<uint32_t>(READ_LOCAL_ID());
+
+    OpIndexLive(exec_ctx, index_oid);
+    DISPATCH_NEXT();
+  }
+
   // -------------------------------------------------------
   // Trig functions
   // -------------------------------------------------------

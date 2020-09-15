@@ -90,6 +90,10 @@ void StorageInterface::IndexDelete(storage::TupleSlot table_tuple_slot) {
   curr_index_->Delete(exec_ctx_->GetTxn(), *index_pr_, table_tuple_slot);
 }
 
+void StorageInterface::MakeIndexLive(catalog::index_oid_t index_oid) {
+  exec_ctx_->GetAccessor()->MakeIndexLive(index_oid);
+}
+
 bool StorageInterface::IndexInsertWithTuple(storage::TupleSlot table_tuple_slot, bool unique) {
   TERRIER_ASSERT(need_indexes_, "Index PR not allocated!");
   if (unique) {

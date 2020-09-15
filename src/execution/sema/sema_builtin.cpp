@@ -2376,6 +2376,25 @@ void Sema::CheckBuiltinPRCall(ast::CallExpr *call, ast::Builtin builtin) {
   }
 }
 
+void Sema::CheckMakeIndexLive(ast::CallExpr *call) {
+  const auto &call_args = call->Arguments();
+  const auto int32_kind = ast::BuiltinType::Int32;
+  if (!CheckArgCount(call, 2)) {
+    return;
+  }
+  // exec_ctx
+  auto exec_ctx_kind = ast::BuiltinType::ExecutionContext;
+  if (!IsPointerToSpecificBuiltin(call_args[0]->GetType(), exec_ctx_kind)) {
+    ReportIncorrectCallArg(call, 0, GetBuiltinType(exec_ctx_kind)->PointerTo());
+    return;
+  }
+  if (!call_args[1]->GetType()->IsIntegerType()) {
+    ReportIncorrectCallArg(call, 1, GetBuiltinType(int32_kind));
+    return;
+  }
+  call->SetType(GetBuiltinType(ast::BuiltinType::Nil));
+}
+
 void Sema::CheckBuiltinStorageInterfaceCall(ast::CallExpr *call, ast::Builtin builtin) {
   const auto &call_args = call->Arguments();
 
@@ -3341,6 +3360,10 @@ void Sema::CheckBuiltinCall(ast::CallExpr *call) {
     case ast::Builtin::IndexDelete:
     case ast::Builtin::StorageInterfaceFree: {
       CheckBuiltinStorageInterfaceCall(call, builtin);
+      break;
+    }
+    case ast::Builtin::IndexLive: {
+      CheckMakeIndexLive(call);
       break;
     }
     case ast::Builtin::Mod:

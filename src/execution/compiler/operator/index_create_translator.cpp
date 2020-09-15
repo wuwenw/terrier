@@ -74,6 +74,8 @@ void IndexCreateTranslator::InitializeQueryState(FunctionBuilder *function) cons
   SetGlobalOids(function, global_col_oids_.Get(codegen_));
 }
 
+void IndexCreateTranslator::TearDownQueryState(FunctionBuilder *function) const { MakeIndexLive(function); }
+
 void IndexCreateTranslator::InitializePipelineState(const Pipeline &pipeline, FunctionBuilder *function) const {
   // Thread local member
   InitializeStorageInterface(function, local_storage_interface_.GetPtr(codegen_));
@@ -234,6 +236,12 @@ void IndexCreateTranslator::IndexInsert(WorkContext *ctx, FunctionBuilder *funct
   If success(function, cond);
   { function->Append(codegen_->AbortTxn(GetExecutionContext())); }
   success.EndIf();
+}
+
+void IndexCreateTranslator::MakeIndexLive(FunctionBuilder *function) const {
+  // Call @MakeIndexLive(index_oid)
+  function->Append(codegen_->CallBuiltin(ast::Builtin::IndexLive,
+                                         {GetExecutionContext(), codegen_->Const32(index_oid_.UnderlyingValue())}));
 }
 
 }  // namespace terrier::execution::compiler

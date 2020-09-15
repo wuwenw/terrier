@@ -2128,6 +2128,12 @@ void BytecodeGenerator::VisitBuiltinPRCall(ast::CallExpr *call, ast::Builtin bui
   }
 }
 
+void BytecodeGenerator::VisitBuiltinIndexLive(ast::CallExpr *call) {
+  LocalVar exec_ctx = VisitExpressionForRValue(call->Arguments()[0]);
+  auto index_oid = VisitExpressionForRValue(call->Arguments()[1]);
+  GetEmitter()->Emit(Bytecode::IndexLive, exec_ctx, index_oid);
+}
+
 void BytecodeGenerator::VisitBuiltinStorageInterfaceCall(ast::CallExpr *call, ast::Builtin builtin) {
   ast::Context *ctx = call->GetType()->GetContext();
   LocalVar storage_interface = VisitExpressionForRValue(call->Arguments()[0]);
@@ -2755,6 +2761,10 @@ void BytecodeGenerator::VisitBuiltinCallExpr(ast::CallExpr *call) {
     case ast::Builtin::IndexDelete:
     case ast::Builtin::StorageInterfaceFree: {
       VisitBuiltinStorageInterfaceCall(call, builtin);
+      break;
+    }
+    case ast::Builtin::IndexLive: {
+      VisitBuiltinIndexLive(call);
       break;
     }
     case ast::Builtin::SizeOf: {
