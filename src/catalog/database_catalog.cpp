@@ -1036,14 +1036,14 @@ void DatabaseCatalog::MakeIndexLive(const common::ManagedPointer<transaction::Tr
 
   // Delete from pg_index table
   txn->StageDelete(db_oid_, postgres::INDEX_TABLE_OID, index_results[0]);
-  auto result = indexes_->Delete(txn, index_results[0]);
+  auto result UNUSED_ATTRIBUTE = indexes_->Delete(txn, index_results[0]);
   TERRIER_ASSERT(
       result,
       "Delete from pg_index should always succeed as write-write conflicts are detected during delete from pg_class");
 
   auto *const indexes_insert_redo = txn->StageWrite(db_oid_, postgres::INDEX_TABLE_OID, pg_index_all_cols_pri_);
   auto *const indexes_insert_pr = indexes_insert_redo->Delta();
-  result = indexes_->Select(txn, index_results[0], indexes_insert_pr);
+  result UNUSED_ATTRIBUTE = indexes_->Select(txn, index_results[0], indexes_insert_pr);
 
   *(reinterpret_cast<bool *>(
       indexes_insert_pr->AccessForceNotNull(pg_index_all_cols_prm_[postgres::INDISLIVE_COL_OID]))) = true;
